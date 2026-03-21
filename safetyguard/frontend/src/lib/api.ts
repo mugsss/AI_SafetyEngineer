@@ -40,55 +40,55 @@ export const authApi = {
     const form = new URLSearchParams();
     form.append('username', email);
     form.append('password', password);
-    const { data } = await client.post<AuthResponse>('/auth/login', form, {
+    const { data } = await client.post<AuthResponse>('/api/auth/login', form, {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     });
     return data;
   },
 
   async register(input: RegisterInput): Promise<AuthResponse> {
-    const { data } = await client.post<AuthResponse>('/auth/register', input);
+    const { data } = await client.post<AuthResponse>('/api/auth/register', input);
     return data;
   },
 
   async me(): Promise<User> {
-    const { data } = await client.get<User>('/auth/me');
+    const { data } = await client.get<User>('/api/auth/me');
     return data;
   },
 };
 
 export const runsApi = {
   async create(input: CreateRunInput): Promise<Run> {
-    const { data } = await client.post<Run>('/runs', input);
+    const { data } = await client.post<Run>('/api/runs', input);
     return data;
   },
 
   async list(page = 1, limit = 20): Promise<RunListResponse> {
-    const { data } = await client.get<RunListResponse>('/runs', {
+    const { data } = await client.get<RunListResponse>('/api/runs', {
       params: { page, limit },
     });
     return data;
   },
 
   async get(runId: string): Promise<Run> {
-    const { data } = await client.get<Run>(`/runs/${runId}`);
+    const { data } = await client.get<Run>(`/api/runs/${runId}`);
     return data;
   },
 
   async delete(runId: string): Promise<void> {
-    await client.delete(`/runs/${runId}`);
+    await client.delete(`/api/runs/${runId}`);
   },
 };
 
 export const reportsApi = {
   async get(runId: string): Promise<SafetyReport> {
-    const { data } = await client.get<SafetyReport>(`/reports/${runId}`);
+    const { data } = await client.get<SafetyReport>(`/api/reports/${runId}`);
     return data;
   },
 
   async getDependencyGraph(runId: string): Promise<DependencyGraph> {
     const { data } = await client.get<DependencyGraph>(
-      `/reports/${runId}/dependency-graph`,
+      `/api/reports/${runId}/dependency-graph`,
     );
     return data;
   },
@@ -96,7 +96,7 @@ export const reportsApi = {
 
 export const simulatorApi = {
   async simulate(input: SimulateInput): Promise<SimulationResult> {
-    const { data } = await client.post<SimulationResult>('/simulator', input);
+    const { data } = await client.post<SimulationResult>('/api/simulator', input);
     return data;
   },
 };
@@ -104,7 +104,7 @@ export const simulatorApi = {
 export const playgroundApi = {
   async query(input: PlaygroundInput): Promise<PlaygroundResult> {
     const { data } = await client.post<PlaygroundResult>(
-      '/playground',
+      '/api/playground',
       input,
     );
     return data;
@@ -113,12 +113,12 @@ export const playgroundApi = {
 
 export const settingsApi = {
   async get(): Promise<AppSettings> {
-    const { data } = await client.get<AppSettings>('/settings');
+    const { data } = await client.get<AppSettings>('/api/settings');
     return data;
   },
 
   async update(settings: Partial<AppSettings>): Promise<AppSettings> {
-    const { data } = await client.put<AppSettings>('/settings', settings);
+    const { data } = await client.put<AppSettings>('/api/settings', settings);
     return data;
   },
 
@@ -126,11 +126,11 @@ export const settingsApi = {
     provider: string,
     apiKey: string,
   ): Promise<{ valid: boolean; error?: string }> {
-    const { data } = await client.post<{ valid: boolean; error?: string }>(
-      '/settings/test-key',
-      { provider, api_key: apiKey },
+    const { data } = await client.post<{ success: boolean; message: string }>(
+      '/api/settings/test-key',
+      { provider, key: apiKey },
     );
-    return data;
+    return { valid: data.success, error: data.success ? undefined : data.message };
   },
 };
 
@@ -138,7 +138,7 @@ export const uploadsApi = {
   async uploadZip(file: File): Promise<UploadResponse> {
     const form = new FormData();
     form.append('file', file);
-    const { data } = await client.post<UploadResponse>('/uploads', form, {
+    const { data } = await client.post<UploadResponse>('/api/uploads', form, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
     return data;

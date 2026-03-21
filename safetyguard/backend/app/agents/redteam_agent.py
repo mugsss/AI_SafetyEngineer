@@ -35,7 +35,7 @@ async def redteam_agent(state: SafetyGuardState) -> dict:
             }
 
         tools = AGENT_TOOL_MAP["redteam"]
-        llm = ChatOpenAI(model=settings.OPENAI_MODEL, temperature=0).bind_tools(tools)
+        llm = ChatOpenAI(**settings.get_llm_kwargs()).bind_tools(tools)
 
         context = (
             f"Repo: {state.get('repo_summary', '')}\n"

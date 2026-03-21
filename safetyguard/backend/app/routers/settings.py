@@ -10,9 +10,7 @@ _settings_store: dict = {}
 
 
 class AppSettings(BaseModel):
-    openai_api_key: str | None = None
-    anthropic_api_key: str | None = None
-    cohere_api_key: str | None = None
+    featherless_api_key: str | None = None
     webhook_url: str | None = None
     webhook_secret: str | None = None
     fail_ci_on_critical: bool = False

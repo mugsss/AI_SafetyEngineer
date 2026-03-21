@@ -21,8 +21,9 @@ build/
 *.db
 *.sqlite3
 
-# Uploads
+# Uploads & cloned repos
 uploads/
+repos/
 
 # IDE
 .vscode/

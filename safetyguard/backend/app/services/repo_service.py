@@ -1,20 +1,32 @@
 import os
 import shutil
-import tempfile
+import uuid
 import zipfile
 
 from git import Repo
 
 from app.config import settings
 
+REPOS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "repos")
+
+
+def _make_work_dir() -> str:
+    os.makedirs(REPOS_DIR, exist_ok=True)
+    path = os.path.join(REPOS_DIR, f"sg_{uuid.uuid4().hex[:12]}")
+    os.makedirs(path)
+    return path
+
 
 def clone_repo(repo_url: str, branch: str = "main") -> str:
-    temp_dir = tempfile.mkdtemp(prefix="safetyguard_")
+    work_dir = _make_work_dir()
+    clone_env = {**os.environ, "GIT_TEMPLATE_DIR": ""}
     try:
-        Repo.clone_from(repo_url, temp_dir, branch=branch, depth=1)
+        Repo.clone_from(repo_url, work_dir, branch=branch, depth=1, env=clone_env)
     except Exception:
-        Repo.clone_from(repo_url, temp_dir, depth=1)
-    return temp_dir
+        shutil.rmtree(work_dir, ignore_errors=True)
+        work_dir = _make_work_dir()
+        Repo.clone_from(repo_url, work_dir, depth=1, env=clone_env)
+    return work_dir
 
 
 def extract_upload(upload_id: str) -> str:
@@ -26,13 +38,13 @@ def extract_upload(upload_id: str) -> str:
     if not zip_files:
         raise FileNotFoundError(f"No zip file found in upload {upload_id}")
 
-    temp_dir = tempfile.mkdtemp(prefix="safetyguard_")
+    work_dir = _make_work_dir()
     zip_path = os.path.join(upload_dir, zip_files[0])
 
     with zipfile.ZipFile(zip_path, "r") as zf:
-        zf.extractall(temp_dir)
+        zf.extractall(work_dir)
 
-    return temp_dir
+    return work_dir
 
 
 def cleanup_repo(repo_path: str) -> None:

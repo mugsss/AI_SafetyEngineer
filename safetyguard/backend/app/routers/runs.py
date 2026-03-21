@@ -60,14 +60,24 @@ def create_run(
         _run_mock_analysis(run.id, db)
         db.refresh(run)
     else:
-        try:
-            from app.tasks.analysis_tasks import run_analysis
-            run_analysis.delay(run.id)
-        except Exception:
-            pass
-
+        _dispatch_analysis(run.id)
 
     return _run_to_response(run)
+
+
+def _dispatch_analysis(run_id: str) -> None:
+    """Try Celery first; fall back to a background thread."""
+    try:
+        from app.tasks.analysis_tasks import run_analysis, celery_app
+        if celery_app is not None:
+            run_analysis.delay(run_id)
+            return
+    except Exception:
+        pass
+
+    import threading
+    from app.tasks.analysis_tasks import execute_analysis
+    threading.Thread(target=execute_analysis, args=(run_id,), daemon=True).start()
 
 
 @router.get("", response_model=RunListResponse)

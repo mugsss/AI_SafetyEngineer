@@ -19,7 +19,7 @@ def get_mock_findings() -> dict[str, list[dict]]:
                 "evidence": {
                     "file": "config.py",
                     "line": 42,
-                    "snippet": "OPENAI_API_KEY = 'sk-abc123...'",
+                    "snippet": "API_KEY = 'rc_abc123...'",
                 },
                 "suggested_fix": (
                     "Move secrets to environment variables or a secret manager; rotate the exposed key."
@@ -89,7 +89,7 @@ def get_mock_findings() -> dict[str, list[dict]]:
                 "evidence": {
                     "file": "app/services/playground_service.py",
                     "line": 54,
-                    "snippet": "client = OpenAI(api_key=settings.OPENAI_API_KEY)",
+                    "snippet": "client = OpenAI(api_key=settings.FEATHERLESS_API_KEY)",
                 },
                 "suggested_fix": "Isolate credentials per tenant or use a broker with scoped keys.",
                 "references": [],

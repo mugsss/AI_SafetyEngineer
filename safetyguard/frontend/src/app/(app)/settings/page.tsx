@@ -32,9 +32,7 @@ import { cn } from '@/lib/utils';
 import type { AppSettings } from '@/types/api';
 
 const settingsSchema = z.object({
-  openai_api_key: z.string().optional(),
-  anthropic_api_key: z.string().optional(),
-  cohere_api_key: z.string().optional(),
+  featherless_api_key: z.string().optional(),
   webhook_url: z.string().optional(),
   webhook_secret: z.string().optional(),
   fail_ci_on_critical: z.boolean(),
@@ -138,9 +136,7 @@ export default function SettingsPage() {
   const { register, handleSubmit, watch, setValue, reset, formState: { isDirty } } = useForm<SettingsFormData>({
     resolver: zodResolver(settingsSchema),
     defaultValues: {
-      openai_api_key: '',
-      anthropic_api_key: '',
-      cohere_api_key: '',
+      featherless_api_key: '',
       webhook_url: '',
       webhook_secret: '',
       fail_ci_on_critical: true,
@@ -156,9 +152,7 @@ export default function SettingsPage() {
   useEffect(() => {
     if (settings) {
       reset({
-        openai_api_key: settings.openai_api_key ?? '',
-        anthropic_api_key: settings.anthropic_api_key ?? '',
-        cohere_api_key: settings.cohere_api_key ?? '',
+        featherless_api_key: settings.featherless_api_key ?? '',
         webhook_url: settings.webhook_url ?? '',
         webhook_secret: settings.webhook_secret ?? '',
         fail_ci_on_critical: settings.fail_ci_on_critical,
@@ -186,9 +180,7 @@ export default function SettingsPage() {
   };
 
   const watchNotifyScoreDrop = watch('notify_on_score_drop');
-  const watchOpenai = watch('openai_api_key') ?? '';
-  const watchAnthropic = watch('anthropic_api_key') ?? '';
-  const watchCohere = watch('cohere_api_key') ?? '';
+  const watchFeatherless = watch('featherless_api_key') ?? '';
   const watchWebhookUrl = watch('webhook_url') ?? '';
   const watchFailCi = watch('fail_ci_on_critical');
   const watchNotifyCompletion = watch('notify_on_completion');
@@ -222,26 +214,19 @@ export default function SettingsPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">API Keys</CardTitle>
-            <CardDescription>Configure your LLM provider API keys</CardDescription>
+            <CardDescription>
+              Configure your Featherless AI API key for open-source model inference.{' '}
+              <a href="https://featherless.ai/account/api-keys" target="_blank" rel="noreferrer" className="text-primary underline">
+                Get your key
+              </a>
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <ApiKeyRow
-              provider="openai"
-              label="OpenAI"
-              value={watchOpenai}
-              onChange={(v) => setValue('openai_api_key', v, { shouldDirty: true })}
-            />
-            <ApiKeyRow
-              provider="anthropic"
-              label="Anthropic"
-              value={watchAnthropic}
-              onChange={(v) => setValue('anthropic_api_key', v, { shouldDirty: true })}
-            />
-            <ApiKeyRow
-              provider="cohere"
-              label="Cohere"
-              value={watchCohere}
-              onChange={(v) => setValue('cohere_api_key', v, { shouldDirty: true })}
+              provider="featherless"
+              label="Featherless AI"
+              value={watchFeatherless}
+              onChange={(v) => setValue('featherless_api_key', v, { shouldDirty: true })}
             />
           </CardContent>
         </Card>

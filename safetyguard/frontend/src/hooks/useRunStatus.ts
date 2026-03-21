@@ -30,7 +30,7 @@ export function useRunStatus(runId: string | undefined) {
     if (!runId) return;
 
     const token = getToken();
-    const url = `${API_URL}/runs/${runId}/status/stream?token=${encodeURIComponent(token ?? '')}`;
+    const url = `${API_URL}/api/runs/${runId}/status?token=${encodeURIComponent(token ?? '')}`;
 
     const es = new EventSource(url);
     eventSourceRef.current = es;

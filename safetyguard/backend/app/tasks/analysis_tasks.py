@@ -1,28 +1,13 @@
 import logging
 from datetime import datetime
 
-from celery import Celery
-
 from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-celery_app = Celery(
-    "safetyguard",
-    broker=settings.REDIS_URL,
-    backend=settings.REDIS_URL,
-)
-celery_app.conf.update(
-    task_serializer="json",
-    result_serializer="json",
-    accept_content=["json"],
-    timezone="UTC",
-    enable_utc=True,
-)
 
-
-@celery_app.task(name="run_analysis", bind=True, max_retries=1)
-def run_analysis(self, run_id: str) -> dict:
+def execute_analysis(run_id: str) -> dict:
+    """Core analysis logic -- runs independently of Celery."""
     from app.database import SessionLocal
     from app.models.run import AnalysisRun
     from app.models.report import SafetyReport
@@ -97,7 +82,6 @@ def run_analysis(self, run_id: str) -> dict:
 
             return {"status": "completed", "overall_score": overall_score}
 
-        # Real mode: clone/extract repo and run LangGraph pipeline
         if run.repo_url:
             repo_path = clone_repo(run.repo_url, run.branch)
         elif run.upload_id:
@@ -155,3 +139,30 @@ def run_analysis(self, run_id: str) -> dict:
         db.close()
         if repo_path:
             cleanup_repo(repo_path)
+
+
+try:
+    from celery import Celery
+
+    celery_app = Celery(
+        "safetyguard",
+        broker=settings.REDIS_URL,
+        backend=settings.REDIS_URL,
+    )
+    celery_app.conf.update(
+        task_serializer="json",
+        result_serializer="json",
+        accept_content=["json"],
+        timezone="UTC",
+        enable_utc=True,
+    )
+
+    @celery_app.task(name="run_analysis", bind=True, max_retries=1)
+    def run_analysis(self, run_id: str) -> dict:
+        return execute_analysis(run_id)
+
+except Exception:
+    celery_app = None
+
+    def run_analysis(run_id: str) -> dict:
+        return execute_analysis(run_id)

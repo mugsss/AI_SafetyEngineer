@@ -9,8 +9,9 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 10080
 
-    OPENAI_API_KEY: str = "mock"
-    OPENAI_MODEL: str = "gpt-4o"
+    FEATHERLESS_API_KEY: str = "mock"
+    FEATHERLESS_API_BASE: str = "https://api.featherless.ai/v1"
+    LLM_MODEL: str = "Qwen/Qwen3-32B"
 
     UPLOAD_DIR: str = "./uploads"
     MAX_UPLOAD_SIZE_MB: int = 200
@@ -21,7 +22,16 @@ class Settings(BaseSettings):
 
     @property
     def is_mock_mode(self) -> bool:
-        return not self.OPENAI_API_KEY or self.OPENAI_API_KEY == "mock"
+        return not self.FEATHERLESS_API_KEY or self.FEATHERLESS_API_KEY == "mock"
+
+    def get_llm_kwargs(self) -> dict:
+        """Common kwargs for the LLM client (Featherless AI)."""
+        return {
+            "model": self.LLM_MODEL,
+            "temperature": 0,
+            "base_url": self.FEATHERLESS_API_BASE,
+            "api_key": self.FEATHERLESS_API_KEY,
+        }
 
 
 @lru_cache

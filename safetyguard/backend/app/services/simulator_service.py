@@ -61,7 +61,7 @@ async def simulate_failure(
     if not settings.is_mock_mode:
         try:
             from langchain_openai import ChatOpenAI
-            llm = ChatOpenAI(model=settings.OPENAI_MODEL, temperature=0)
+            llm = ChatOpenAI(**settings.get_llm_kwargs())
             result = await llm.ainvoke(
                 f"In 2-3 sentences, describe the impact of a {failure_label} "
                 f"on component '{target_node.get('label', node_id)}' "

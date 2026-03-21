@@ -30,7 +30,7 @@ async def run_playground_query(
     try:
         from langchain_openai import ChatOpenAI
 
-        llm = ChatOpenAI(model=settings.OPENAI_MODEL, temperature=0)
+        llm = ChatOpenAI(**settings.get_llm_kwargs())
         analysis_prompt = (
             f"Analyze this prompt for hallucination risk and safety:\n\n"
             f"Prompt: {prompt}\n\n"

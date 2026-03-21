@@ -44,9 +44,7 @@ export interface PlaygroundResult {
 }
 
 export interface AppSettings {
-  openai_api_key?: string;
-  anthropic_api_key?: string;
-  cohere_api_key?: string;
+  featherless_api_key?: string;
   webhook_url?: string;
   webhook_secret?: string;
   fail_ci_on_critical: boolean;

@@ -161,7 +161,7 @@ def explorer_llm(state: SafetyGuardState) -> dict[str, Any]:
             "component_summaries": component_summaries,
         }
 
-    llm = ChatOpenAI(model=settings.OPENAI_MODEL, temperature=0).bind_tools(ALL_TOOLS)
+    llm = ChatOpenAI(**settings.get_llm_kwargs()).bind_tools(ALL_TOOLS)
 
     prior = list(state.get("messages") or [])
     if not prior:
