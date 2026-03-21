@@ -31,9 +31,7 @@ const HeroSection = React.forwardRef<HTMLDivElement, HeroSectionProps>(
       description = 'Connect a repository, run specialized safety agents, and get actionable findings before production.',
       ctaText = 'Start analysis run',
       ctaHref = '/runs/new',
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       bottomImage: _bottomImage,
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       gridOptions: _gridOptions,
       ...props
     },

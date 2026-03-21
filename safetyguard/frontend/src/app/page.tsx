@@ -12,34 +12,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Features } from '@/components/ui/features-4';
-import { HeroSection } from '@/components/ui/hero-section-dark';
-
-function StatsBar() {
-  const stats = [
-    { label: 'Safety Dimensions', value: '10', icon: Eye },
-    { label: 'Threat Categories', value: '50+', icon: AlertTriangle },
-    { label: 'Analysis Metrics', value: '100+', icon: BarChart3 },
-  ];
-
-  return (
-    <section className="border-y border-border bg-card/50">
-      <div className="mx-auto grid max-w-4xl grid-cols-1 divide-y sm:grid-cols-3 sm:divide-x sm:divide-y-0">
-        {stats.map((stat) => {
-          const Icon = stat.icon;
-          return (
-            <div key={stat.label} className="flex items-center justify-center gap-4 px-6 py-8">
-              <Icon className="h-5 w-5 text-primary" />
-              <div>
-                <p className="text-2xl font-bold text-foreground">{stat.value}</p>
-                <p className="text-sm text-muted-foreground">{stat.label}</p>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
+import ResponsiveHeroBanner from '@/components/ui/responsive-hero-banner';
 
 function DimensionsShowcase() {
   const dimensions = [
@@ -76,6 +49,33 @@ function DimensionsShowcase() {
             </div>
           ))}
         </div>
+      </div>
+    </section>
+  );
+}
+
+function StatsBar() {
+  const stats = [
+    { label: 'Safety Dimensions', value: '10', icon: Eye },
+    { label: 'Threat Categories', value: '50+', icon: AlertTriangle },
+    { label: 'Analysis Metrics', value: '100+', icon: BarChart3 },
+  ];
+
+  return (
+    <section className="border-y border-border bg-card/50">
+      <div className="mx-auto grid max-w-4xl grid-cols-1 divide-y sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+        {stats.map((stat) => {
+          const Icon = stat.icon;
+          return (
+            <div key={stat.label} className="flex items-center justify-center gap-4 px-6 py-8">
+              <Icon className="h-5 w-5 text-primary" />
+              <div>
+                <p className="text-2xl font-bold text-foreground">{stat.value}</p>
+                <p className="text-sm text-muted-foreground">{stat.label}</p>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </section>
   );
@@ -126,74 +126,54 @@ function Footer() {
 export default function Home() {
   return (
     <div className="min-h-screen bg-background">
-      <nav className="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur-md">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
-          <Link href="/" className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
-              <Shield className="h-4 w-4 text-primary" />
-            </div>
-            <span className="bg-gradient-to-r from-primary to-blue-400 bg-clip-text text-lg font-bold tracking-tight text-transparent">
-              SafetyGuard
-            </span>
-          </Link>
-          <div className="flex items-center gap-2">
-            <Button asChild variant="ghost" size="sm" className="gap-1.5 text-muted-foreground">
-              <Link href="/">
-                <HomeIcon className="h-4 w-4" />
-                Home
-              </Link>
-            </Button>
-            <Button asChild size="sm">
-              <Link href="/dashboard">
-                Open Dashboard
-                <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
-              </Link>
-            </Button>
-          </div>
-        </div>
-      </nav>
-
-      <HeroSection
-        className="overflow-hidden"
-        title="SafetyGuard — Multi-agent AI safety"
-        subtitle={{
-          regular: 'Ship LLM products with ',
-          gradient: 'measurable safety & compliance.',
-        }}
-        description="Clone a repo or upload a zip. Ten specialized agents scan security, privacy, hallucinations, cost, failures, and more — then deliver scores, evidence, and fixes before production."
-        ctaText="Open dashboard"
-        ctaHref="/dashboard"
-        bottomImage={null}
-        gridOptions={{
-          angle: 65,
-          opacity: 0.35,
-          cellSize: 52,
-          lightLineColor: '#6b7280',
-          darkLineColor: '#3f3f46',
-        }}
+      {/* Full-screen hero with built-in nav */}
+      <ResponsiveHeroBanner
+        backgroundImageUrl="https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=3840&q=80"
+        navLinks={[
+          { label: 'Home', href: '/', isActive: true },
+          { label: 'Dashboard', href: '/dashboard' },
+          { label: 'New Run', href: '/runs/new' },
+          { label: 'Simulator', href: '/simulator' },
+          { label: 'Playground', href: '/playground' },
+        ]}
+        ctaButtonText="Get Started"
+        ctaButtonHref="/runs/new"
+        badgeLabel="v1.0"
+        badgeText="Multi-agent AI safety analysis platform"
+        title="Secure Your AI"
+        titleLine2="Before It Ships"
+        description="Connect a repository and let ten specialized safety agents scan for security vulnerabilities, hallucinations, privacy risks, cost inefficiencies, and more — delivering scored findings and concrete fixes before production."
+        primaryButtonText="Start Analysis Run"
+        primaryButtonHref="/runs/new"
+        secondaryButtonText="Open Dashboard"
+        secondaryButtonHref="/dashboard"
+        partnersTitle="Analyzing AI systems across every critical safety dimension"
+        partnerNames={['Security', 'Privacy', 'Hallucination', 'Cost', 'Observability', 'Risk', 'Performance', 'Failure Modes', 'Compliance', 'Drift']}
       />
 
+      {/* Below-fold content */}
       <div className="relative z-10 bg-background">
         <StatsBar />
         <Features />
         <DimensionsShowcase />
         <CTASection />
+
+        <section className="border-t border-border bg-muted/30 py-10">
+          <div className="mx-auto flex max-w-6xl flex-col items-center justify-center gap-4 px-6 sm:flex-row">
+            <p className="text-center text-sm text-muted-foreground">
+              Prefer to jump straight into a run?
+            </p>
+            <Button asChild variant="secondary" size="lg" className="gap-2">
+              <Link href="/runs/new">
+                <GitBranch className="h-4 w-4" />
+                New analysis run
+              </Link>
+            </Button>
+          </div>
+        </section>
+
         <Footer />
       </div>
-
-      <section className="border-t border-border bg-muted/30 py-10">
-        <div className="mx-auto flex max-w-6xl flex-col items-center justify-center gap-4 px-6 sm:flex-row">
-          <p className="text-center text-sm text-muted-foreground">
-            Prefer to jump straight into a run?
-          </p>
-          <Button asChild variant="secondary" size="lg" className="gap-2">
-            <Link href="/runs/new">
-              <GitBranch className="h-4 w-4" />
-              New analysis run
-            </Link>
-          </Button>
-        </div>
-      </section>
     </div>
   );
 }

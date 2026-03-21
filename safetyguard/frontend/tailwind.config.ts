@@ -59,15 +59,24 @@ const config: Config = {
       fontFamily: {
         sans: ["var(--font-geist-sans)"],
         mono: ["var(--font-geist-mono)"],
+        serif: ["var(--font-instrument-serif)", "Georgia", "serif"],
       },
       keyframes: {
         grid: {
           "0%": { transform: "translateY(0)" },
           "100%": { transform: "translateY(30%)" },
         },
+        fadeSlideIn: {
+          from: { opacity: "0", transform: "translateY(20px)" },
+          to: { opacity: "1", transform: "translateY(0)" },
+        },
       },
       animation: {
         grid: "grid 24s linear infinite",
+        "fade-slide-in-1": "fadeSlideIn 0.6s ease-out 0.1s both",
+        "fade-slide-in-2": "fadeSlideIn 0.6s ease-out 0.25s both",
+        "fade-slide-in-3": "fadeSlideIn 0.6s ease-out 0.4s both",
+        "fade-slide-in-4": "fadeSlideIn 0.6s ease-out 0.55s both",
       },
     },
   },
