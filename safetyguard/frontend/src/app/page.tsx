@@ -14,14 +14,6 @@ import { Button } from '@/components/ui/button';
 import { Features } from '@/components/ui/features-4';
 import { HeroSection } from '@/components/ui/hero-section-dark';
 
-/** Unsplash: analytics / workspace imagery (stable public URLs) */
-const HERO_PREVIEW = {
-  light:
-    'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=1600&q=80',
-  dark:
-    'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=1600&q=80',
-};
-
 function StatsBar() {
   const stats = [
     { label: 'Safety Dimensions', value: '10', icon: Eye },
@@ -171,7 +163,7 @@ export default function Home() {
         description="Clone a repo or upload a zip. Ten specialized agents scan security, privacy, hallucinations, cost, failures, and more — then deliver scores, evidence, and fixes before production."
         ctaText="Open dashboard"
         ctaHref="/dashboard"
-        bottomImage={HERO_PREVIEW}
+        bottomImage={null}
         gridOptions={{
           angle: 65,
           opacity: 0.35,
