@@ -425,9 +425,11 @@ function RunningState({
         </div>
         <div className="w-full space-y-2">
           <Progress value={progress} className="h-2" />
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>{message || 'Initializing...'}</span>
-            <span className="tabular-nums">{Math.round(progress)}%</span>
+          <div className="flex flex-col gap-1 text-xs text-muted-foreground sm:flex-row sm:items-start sm:justify-between">
+            <span className="text-left leading-relaxed">
+              {message || 'Connecting for live progress…'}
+            </span>
+            <span className="shrink-0 tabular-nums">{Math.round(progress)}%</span>
           </div>
         </div>
       </motion.div>

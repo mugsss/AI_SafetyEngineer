@@ -84,19 +84,31 @@ def _repo_understanding(state: SafetyGuardState) -> dict:
     }
 
 
+MAX_CONCURRENT_AGENTS = 1
+
+
 async def _run_agents_parallel(state: SafetyGuardState) -> dict:
     import asyncio
 
     enabled = state.get("enabled_agents", {})
-    tasks = []
-    for agent_name, agent_fn in AGENT_NODES.items():
-        if enabled.get(agent_name, False):
-            tasks.append(agent_fn(state))
+    agent_pairs = [
+        (name, fn) for name, fn in AGENT_NODES.items()
+        if enabled.get(name, False)
+    ]
 
-    if not tasks:
+    if not agent_pairs:
         return {"progress": 80}
 
-    results = await asyncio.gather(*tasks, return_exceptions=True)
+    semaphore = asyncio.Semaphore(MAX_CONCURRENT_AGENTS)
+
+    async def _throttled(name: str, fn):
+        async with semaphore:
+            return await fn(state)
+
+    results = await asyncio.gather(
+        *[_throttled(name, fn) for name, fn in agent_pairs],
+        return_exceptions=True,
+    )
 
     merged: dict = {"progress": 80}
     for r in results:

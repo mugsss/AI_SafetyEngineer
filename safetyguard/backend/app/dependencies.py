@@ -11,7 +11,9 @@ from app.database import get_db
 from app.models.user import User
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
+
+ANON_USER_ID = "00000000-0000-0000-0000-000000000000"
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -31,9 +33,28 @@ def create_access_token(data: dict) -> str:
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
+def _get_or_create_anon_user(db: Session) -> User:
+    user = db.query(User).filter(User.id == ANON_USER_ID).first()
+    if user is None:
+        user = User(
+            id=ANON_USER_ID,
+            email="anon@safetyguard.local",
+            hashed_password="",
+            full_name="Anonymous",
+            is_active=True,
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+    return user
+
+
 def get_current_user(
-    token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)
+    token: str | None = Depends(oauth2_scheme), db: Session = Depends(get_db)
 ) -> User:
+    if not token:
+        return _get_or_create_anon_user(db)
+
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -47,9 +68,9 @@ def get_current_user(
         if user_id is None:
             raise credentials_exception
     except JWTError:
-        raise credentials_exception
+        return _get_or_create_anon_user(db)
 
     user = db.query(User).filter(User.id == user_id).first()
     if user is None:
-        raise credentials_exception
+        return _get_or_create_anon_user(db)
     return user

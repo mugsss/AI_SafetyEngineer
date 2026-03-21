@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
@@ -11,8 +12,10 @@ from app.models.user import User
 from app.models.run import AnalysisRun
 from app.schemas.run import CreateRunInput, RunResponse, RunListResponse
 from app.dependencies import get_current_user
+from app.utils.severity import canonical_severity, severity_rank
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 def _run_to_response(run: AnalysisRun) -> RunResponse:
@@ -56,11 +59,24 @@ def create_run(
     db.refresh(run)
 
     from app.config import settings
-    if settings.is_mock_mode:
-        _run_mock_analysis(run.id, db)
-        db.refresh(run)
-    else:
-        _dispatch_analysis(run.id)
+
+    try:
+        if settings.is_mock_mode:
+            _run_mock_analysis(run.id, db)
+            db.refresh(run)
+        else:
+            _dispatch_analysis(run.id)
+    except Exception as e:
+        logger.exception("Failed to start analysis for run %s", run.id)
+        run = db.query(AnalysisRun).filter(AnalysisRun.id == run.id).first()
+        if run:
+            run.status = "failed"
+            run.error_message = str(e)[:2000]
+            db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Analysis failed to start: {e!s}",
+        ) from e
 
     return _run_to_response(run)
 
@@ -148,21 +164,26 @@ async def run_status_sse(
         while True:
             run = db.query(AnalysisRun).filter(AnalysisRun.id == run_id).first()
             if not run:
-                yield f"event: error\ndata: {json.dumps({'error': 'Run not found'})}\n\n"
+                # Default event type "message" so EventSource.onmessage receives it
+                yield f"data: {json.dumps({'error': 'Run not found', 'status': 'failed'})}\n\n"
                 return
 
+            progress = _estimate_progress(run)
+            msg = _status_message(run, progress)
             event_data = {
+                "run_id": run_id,
                 "status": run.status,
-                "progress": _estimate_progress(run),
-                "current_agent": _get_current_agent(run),
+                "progress": progress,
+                "message": msg,
             }
-            yield f"event: status\ndata: {json.dumps(event_data)}\n\n"
+            # Must NOT use a custom event name — browsers only deliver those to addEventListener('name').
+            yield f"data: {json.dumps(event_data)}\n\n"
 
             if run.status in ("completed", "failed"):
                 return
 
             db.expire_all()
-            await asyncio.sleep(3)
+            await asyncio.sleep(2)
 
     return StreamingResponse(
         event_stream(),
@@ -181,21 +202,38 @@ def _estimate_progress(run: AnalysisRun) -> int:
     if run.status == "failed":
         return 0
     if run.status == "pending":
-        return 0
+        return 2
     if run.status == "running":
         if run.started_at:
             elapsed = (datetime.utcnow() - run.started_at).total_seconds()
-            return min(int(elapsed / 3), 95)
-        return 10
+            # Time-based visual only — not real pipeline %. Caps at 90% until done.
+            return min(5 + int(elapsed / 5), 90)
+        return 8
     return 0
 
 
-def _get_current_agent(run: AnalysisRun) -> str:
-    if run.status == "completed":
-        return "done"
+def _status_message(run: AnalysisRun, progress: int) -> str:
     if run.status == "pending":
-        return "waiting"
-    return "analyzing"
+        return "Queued — starting soon…"
+    if run.status == "completed":
+        return "Done"
+    if run.status == "failed":
+        return "Failed"
+    if run.status == "running" and run.started_at:
+        elapsed = int((datetime.utcnow() - run.started_at).total_seconds())
+        m, s = elapsed // 60, elapsed % 60
+        # Clarify: % is not “work done”, only elapsed-time estimate
+        if progress >= 90:
+            return (
+                f"Still running — {m}m {s}s elapsed. "
+                "The bar above is a time estimate, not exact completion; "
+                "agents may still be analyzing. Large repos often take 15–45+ min."
+            )
+        return (
+            f"Analyzing repository and agents… {m}m {s}s elapsed "
+            f"(estimate ~{progress}% — will approach 90% then wait until finished)."
+        )
+    return "Starting analysis…"
 
 
 def _run_mock_analysis(run_id: str, db: Session) -> None:
@@ -215,19 +253,18 @@ def _run_mock_analysis(run_id: str, db: Session) -> None:
     mock_graph = get_mock_dependency_graph()
 
     all_findings = {}
-    severity_order = ["critical", "high", "medium", "low", "info"]
     for dim_name, findings in mock_findings.items():
         enabled = (run.enabled_agents or {}).get(dim_name, False)
         dim_findings = findings if enabled else []
-        worst = "info"
+        worst_raw = "info"
         for f in dim_findings:
-            sev = f.get("severity", "info")
-            if severity_order.index(sev) < severity_order.index(worst):
-                worst = sev
+            raw = str(f.get("severity", "info"))
+            if severity_rank(raw) < severity_rank(worst_raw):
+                worst_raw = raw
         all_findings[dim_name] = {
             "findings": dim_findings,
             "finding_count": len(dim_findings),
-            "worst_severity": worst,
+            "worst_severity": canonical_severity(worst_raw),
             "summary": f"{len(dim_findings)} {dim_name} issues found." if dim_findings else f"No {dim_name} issues found.",
         }
 

@@ -27,7 +27,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import { runsApi, uploadsApi } from '@/lib/api';
+import { runsApi, uploadsApi, formatApiError } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -161,6 +161,7 @@ export default function NewRunPage() {
   const [step, setStep] = useState(0);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [createError, setCreateError] = useState<string | null>(null);
 
   const form = useForm<RunFormValues>({
     resolver: zodResolver(runSchema),
@@ -197,8 +198,8 @@ export default function NewRunPage() {
         setValue('uploadId', res.upload_id);
         setValue('uploadFilename', res.filename);
         setValue('uploadSize', res.size);
-      } catch {
-        setUploadError('Failed to upload file. Please try again.');
+      } catch (err) {
+        setUploadError(formatApiError(err));
       } finally {
         setUploading(false);
       }
@@ -216,14 +217,17 @@ export default function NewRunPage() {
   const createRun = useMutation({
     mutationFn: () =>
       runsApi.create({
-        repo_url: targetType === 'git' ? repoUrl : undefined,
+        repo_url: targetType === 'git' ? repoUrl?.trim() : undefined,
         upload_id: targetType === 'zip' ? uploadId : undefined,
         branch,
         enabled_agents: enabledAgents,
       }),
+    onMutate: () => setCreateError(null),
     onSuccess: (run) => {
+      setCreateError(null);
       router.push(`/report/${run.id}`);
     },
+    onError: (err) => setCreateError(formatApiError(err)),
   });
 
   // Navigation
@@ -364,10 +368,10 @@ export default function NewRunPage() {
         </div>
       </div>
 
-      {createRun.isError && (
-        <div className="flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
-          <AlertCircle className="h-4 w-4 shrink-0" />
-          Failed to create run. Please try again.
+      {createError && (
+        <div className="flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span className="whitespace-pre-wrap break-words">{createError}</span>
         </div>
       )}
     </div>

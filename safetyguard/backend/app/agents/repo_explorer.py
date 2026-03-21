@@ -219,7 +219,7 @@ def should_continue(state: SafetyGuardState) -> Literal["end", "continue"]:
     if settings.is_mock_mode:
         return "end"
 
-    if state.get("explorer_turns", 0) >= 20:
+    if state.get("explorer_turns", 0) >= settings.REPO_EXPLORER_MAX_TURNS:
         return "end"
 
     messages = state.get("messages") or []

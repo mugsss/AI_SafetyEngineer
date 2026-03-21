@@ -1,4 +1,4 @@
-import axios, { AxiosInstance } from 'axios';
+import axios, { AxiosInstance, isAxiosError } from 'axios';
 import type { SimulateInput, SimulationResult } from '@/types/api';
 import type { PlaygroundInput, PlaygroundResult } from '@/types/api';
 import type { AppSettings, UploadResponse } from '@/types/api';
@@ -7,9 +7,48 @@ import type { SafetyReport, DependencyGraph } from '@/types/report';
 
 const baseURL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
 
+/** Use for user-facing error messages (e.g. “cannot reach API”). */
+export function getApiBaseUrl(): string {
+  return baseURL;
+}
+
+/**
+ * Turns axios / FastAPI errors into a readable string for the UI.
+ */
+export function formatApiError(error: unknown): string {
+  if (isAxiosError(error)) {
+    if (!error.response) {
+      return (
+        `Cannot reach the API at ${baseURL}. ` +
+        'Start the SafetyGuard backend (see safetyguard/README.md): `cd backend && uvicorn app.main:app --reload`. ' +
+        'If the UI uses a different host/port, set NEXT_PUBLIC_API_URL in frontend/.env.local to match.'
+      );
+    }
+    const data = error.response.data as { detail?: unknown } | undefined;
+    const detail = data?.detail;
+    if (typeof detail === 'string') return detail;
+    if (Array.isArray(detail)) {
+      return detail
+        .map((item) =>
+          typeof item === 'object' && item && 'msg' in item
+            ? String((item as { msg: string }).msg)
+            : JSON.stringify(item),
+        )
+        .join(' ');
+    }
+    if (detail != null && typeof detail === 'object') {
+      return JSON.stringify(detail);
+    }
+    return error.response.statusText || error.message;
+  }
+  if (error instanceof Error) return error.message;
+  return 'Something went wrong.';
+}
+
 const client: AxiosInstance = axios.create({
   baseURL,
   headers: { 'Content-Type': 'application/json' },
+  timeout: 120_000,
 });
 
 export const runsApi = {

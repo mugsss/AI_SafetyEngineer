@@ -35,7 +35,13 @@ export function useRunStatus(runId: string | undefined) {
 
     es.onmessage = (event) => {
       try {
-        const data: RunStatusEvent = JSON.parse(event.data);
+        const data = JSON.parse(event.data) as RunStatusEvent & { error?: string };
+        if (data.error) {
+          setMessage(data.error);
+          setStatus('failed');
+          es.close();
+          return;
+        }
         setStatus(data.status);
         if (data.progress !== undefined) setProgress(data.progress);
         if (data.message !== undefined) setMessage(data.message);

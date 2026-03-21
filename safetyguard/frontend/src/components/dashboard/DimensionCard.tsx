@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import { motion } from 'framer-motion';
 import {
   Shield,
   AlertTriangle,
@@ -13,35 +14,32 @@ import {
   HardDrive,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import { Card } from '@/components/ui/card';
 import { SeverityBadge } from '@/components/shared/SeverityBadge';
 import { cn } from '@/lib/utils';
 import type { Dimension, Severity } from '@/types/report';
 
 const dimensionMeta: Record<
   Exclude<Dimension, 'redteam'>,
-  { icon: LucideIcon; label: string }
+  { icon: LucideIcon; label: string; color: string; bg: string }
 > = {
-  risk: { icon: AlertTriangle, label: 'Risk' },
-  security: { icon: Shield, label: 'Security' },
-  hallucinations: { icon: Brain, label: 'Hallucinations' },
-  failures: { icon: Zap, label: 'Failures' },
-  cost: { icon: DollarSign, label: 'Cost' },
-  privacy: { icon: Lock, label: 'Privacy' },
-  observability: { icon: Eye, label: 'Observability' },
-  performance: { icon: Gauge, label: 'Performance' },
-  resources: { icon: HardDrive, label: 'Resources' },
-};
-
-const severityGlow: Record<Severity, string> = {
-  critical: '0 0 20px hsl(0 84% 60% / 0.35)',
-  high: '0 0 20px hsl(25 95% 55% / 0.35)',
-  medium: '0 0 20px hsl(48 96% 53% / 0.30)',
-  low: '0 0 20px hsl(142 71% 45% / 0.25)',
-  info: '0 0 20px hsl(199 89% 48% / 0.25)',
+  risk:           { icon: AlertTriangle, label: 'Risk',           color: 'text-orange-400', bg: 'bg-orange-500/10' },
+  security:       { icon: Shield,        label: 'Security',       color: 'text-red-400',    bg: 'bg-red-500/10' },
+  hallucinations: { icon: Brain,         label: 'Hallucinations', color: 'text-purple-400', bg: 'bg-purple-500/10' },
+  failures:       { icon: Zap,           label: 'Failures',       color: 'text-amber-400',  bg: 'bg-amber-500/10' },
+  cost:           { icon: DollarSign,    label: 'Cost',           color: 'text-emerald-400',bg: 'bg-emerald-500/10' },
+  privacy:        { icon: Lock,          label: 'Privacy',        color: 'text-violet-400', bg: 'bg-violet-500/10' },
+  observability:  { icon: Eye,           label: 'Observability',  color: 'text-cyan-400',   bg: 'bg-cyan-500/10' },
+  performance:    { icon: Gauge,         label: 'Performance',    color: 'text-blue-400',   bg: 'bg-blue-500/10' },
+  resources:      { icon: HardDrive,     label: 'Resources',      color: 'text-teal-400',   bg: 'bg-teal-500/10' },
 };
 
 function getScoreColor(score: number): string {
+  if (score >= 70) return 'bg-green-500';
+  if (score >= 40) return 'bg-yellow-500';
+  return 'bg-red-500';
+}
+
+function getScoreTextColor(score: number): string {
   if (score >= 70) return 'text-green-400';
   if (score >= 40) return 'text-yellow-400';
   return 'text-red-400';
@@ -52,7 +50,9 @@ interface DimensionCardProps {
   score: number;
   worstSeverity: Severity;
   findingCount: number;
-  runId: string;
+  /** When empty, the card is display-only (no navigation). */
+  runId?: string;
+  index?: number;
 }
 
 export function DimensionCard({
@@ -61,53 +61,55 @@ export function DimensionCard({
   worstSeverity,
   findingCount,
   runId,
+  index = 0,
 }: DimensionCardProps) {
   const router = useRouter();
   const meta = dimensionMeta[dimension];
   const Icon = meta.icon;
+  const pct = Math.min(Math.max(score, 0), 100);
 
   return (
-    <Card
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.05, duration: 0.4, ease: 'easeOut' }}
       className={cn(
-        'group cursor-pointer p-5 transition-all duration-300',
-        'hover:border-primary/40',
+        'group rounded-xl border border-border bg-card p-5',
+        runId &&
+          'cursor-pointer transition-all duration-300 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5',
       )}
-      style={{
-        // @ts-expect-error -- CSS custom property for hover glow
-        '--hover-glow': severityGlow[worstSeverity],
-      }}
-      onClick={() => router.push(`/report/${runId}?tab=${dimension}`)}
-      onMouseEnter={(e) => {
-        (e.currentTarget as HTMLElement).style.boxShadow =
-          severityGlow[worstSeverity];
-      }}
-      onMouseLeave={(e) => {
-        (e.currentTarget as HTMLElement).style.boxShadow = 'none';
+      onClick={() => {
+        if (!runId) return;
+        router.push(`/report/${runId}?tab=${dimension}`);
       }}
     >
-      <div className="flex items-start justify-between">
-        <div className="flex items-center gap-2.5">
-          <div className="rounded-lg bg-secondary p-2">
-            <Icon className="h-5 w-5 text-primary" />
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className={cn('rounded-lg p-2', meta.bg)}>
+            <Icon className={cn('h-4 w-4', meta.color)} />
           </div>
-          <span className="text-sm font-medium text-foreground">
-            {meta.label}
-          </span>
+          <span className="text-sm font-semibold text-foreground">{meta.label}</span>
         </div>
         <SeverityBadge severity={worstSeverity} />
       </div>
 
       <div className="mt-4 flex items-end justify-between">
-        <div>
-          <span className={cn('text-3xl font-bold', getScoreColor(score))}>
-            {Math.round(score)}
-          </span>
-          <span className="ml-1 text-sm text-muted-foreground">/100</span>
-        </div>
-        <span className="text-sm text-muted-foreground">
-          {findingCount} {findingCount === 1 ? 'issue' : 'issues'}
+        <span className={cn('text-3xl font-bold tabular-nums', getScoreTextColor(score))}>
+          {Math.round(score)}
+        </span>
+        <span className="text-xs text-muted-foreground">
+          {findingCount} {findingCount === 1 ? 'finding' : 'findings'}
         </span>
       </div>
-    </Card>
+
+      <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-secondary">
+        <motion.div
+          className={cn('h-full rounded-full', getScoreColor(score))}
+          initial={{ width: 0 }}
+          animate={{ width: `${pct}%` }}
+          transition={{ delay: index * 0.05 + 0.3, duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+        />
+      </div>
+    </motion.div>
   );
 }

@@ -48,7 +48,7 @@ async def hallucination_agent(state: SafetyGuardState) -> dict:
             {"role": "user", "content": f"{context}\n\nAnalyze and return JSON array of findings."},
         ]
 
-        for _ in range(5):
+        for _ in range(settings.AGENT_MAX_TOOL_ROUNDS):
             response = await llm.ainvoke(messages)
             if not response.tool_calls:
                 break

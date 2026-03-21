@@ -14,6 +14,7 @@ def execute_analysis(run_id: str) -> dict:
     from app.services.repo_service import clone_repo, extract_upload, cleanup_repo
     from app.utils.mock_data import get_mock_findings, get_mock_dependency_graph
     from app.utils.scoring import compute_dimension_scores, compute_overall_score
+    from app.utils.severity import canonical_severity, severity_rank
 
     db = SessionLocal()
     repo_path = None
@@ -36,18 +37,21 @@ def execute_analysis(run_id: str) -> dict:
             for dim_name, findings in mock_findings.items():
                 enabled = run.enabled_agents.get(dim_name, False)
                 dim_findings = findings if enabled else []
-                worst = "info"
-                severity_order = ["critical", "high", "medium", "low", "info"]
+                worst_raw = "info"
                 for f in dim_findings:
-                    sev = f.get("severity", "info")
-                    if severity_order.index(sev) < severity_order.index(worst):
-                        worst = sev
+                    raw = str(f.get("severity", "info"))
+                    if severity_rank(raw) < severity_rank(worst_raw):
+                        worst_raw = raw
                 all_findings[dim_name] = {
                     "findings": dim_findings,
                     "finding_count": len(dim_findings),
-                    "worst_severity": worst,
+                    "worst_severity": canonical_severity(worst_raw),
                     "score": 100,
-                    "summary": f"{'No' if not dim_findings else len(dim_findings)} {dim_name} issues found.",
+                    "summary": (
+                        f"{len(dim_findings)} {dim_name} issues found."
+                        if dim_findings
+                        else f"No {dim_name} issues found."
+                    ),
                 }
 
             dimension_scores = compute_dimension_scores(all_findings)

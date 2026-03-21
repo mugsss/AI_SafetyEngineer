@@ -60,6 +60,15 @@ const config: Config = {
         sans: ["var(--font-geist-sans)"],
         mono: ["var(--font-geist-mono)"],
       },
+      keyframes: {
+        grid: {
+          "0%": { transform: "translateY(0)" },
+          "100%": { transform: "translateY(30%)" },
+        },
+      },
+      animation: {
+        grid: "grid 24s linear infinite",
+      },
     },
   },
   plugins: [tailwindAnimate],
