@@ -13,7 +13,20 @@ from langgraph.prebuilt import ToolNode
 
 from app.agents.state import SafetyGuardState
 from app.config import settings
-from app.utils.file_tools import ALL_TOOLS, get_dependency_info, get_repo_metadata, list_files, set_repo_root
+from app.utils.file_tools import (
+    ALL_TOOLS,
+    find_openapi_spec,  # noqa: F401
+    get_dependency_info,
+    get_repo_metadata,
+    list_files,
+    read_config_files,  # noqa: F401
+    read_directory,  # noqa: F401
+    read_env_files,  # noqa: F401
+    read_file,  # noqa: F401
+    read_prompt_templates,  # noqa: F401
+    search_code,  # noqa: F401
+    set_repo_root,
+)
 
 _EXPLORER_SYSTEM = (
     "You are a code repository analyst. Examine the repository to understand its "
