@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { getToken } from '@/lib/auth';
 import type { RunStatus } from '@/types/run';
 
 interface RunStatusEvent {
@@ -29,8 +28,7 @@ export function useRunStatus(runId: string | undefined) {
   useEffect(() => {
     if (!runId) return;
 
-    const token = getToken();
-    const url = `${API_URL}/api/runs/${runId}/status?token=${encodeURIComponent(token ?? '')}`;
+    const url = `${API_URL}/api/runs/${runId}/status`;
 
     const es = new EventSource(url);
     eventSourceRef.current = es;
