@@ -160,25 +160,28 @@ def execute_analysis(run_id: str) -> dict:
         run.finished_at = datetime.utcnow()
         db.commit()
 
-        from app.utils.n8n_webhook import emit_workflow_event
-
         base = (settings.FRONTEND_BASE_URL or "").rstrip("/")
-        emit_workflow_event(
-            "analysis.completed",
-            run_id=run_id,
-            status="completed",
-            user_id=run.user_id,
-            extra={
-                "repo_url": run.repo_url or "",
-                "branch": run.branch or "",
-                "overall_score": final_report.get("overall_score"),
-                "dimension_scores": final_report.get("dimension_scores") or {},
-                "executive_summary": (final_report.get("executive_summary") or "")[:2000],
-                "links": {
-                    "report": f"{base}/report/{run_id}" if base else f"/report/{run_id}",
+        try:
+            from app.utils.n8n_webhook import emit_workflow_event
+
+            emit_workflow_event(
+                "analysis.completed",
+                run_id=run_id,
+                status="completed",
+                user_id=run.user_id,
+                extra={
+                    "repo_url": run.repo_url or "",
+                    "branch": run.branch or "",
+                    "overall_score": final_report.get("overall_score"),
+                    "dimension_scores": final_report.get("dimension_scores") or {},
+                    "executive_summary": (final_report.get("executive_summary") or "")[:2000],
+                    "links": {
+                        "report": f"{base}/report/{run_id}" if base else f"/report/{run_id}",
+                    },
                 },
-            },
-        )
+            )
+        except Exception:
+            logger.exception("Workflow webhook emit failed (run %s completed anyway)", run_id)
 
         return {"status": "completed", "overall_score": final_report.get("overall_score", 0)}
 
@@ -191,22 +194,25 @@ def execute_analysis(run_id: str) -> dict:
                 run.error_message = str(e)[:2000]
                 run.finished_at = datetime.utcnow()
                 db.commit()
-                from app.utils.n8n_webhook import emit_workflow_event
-
                 base = (settings.FRONTEND_BASE_URL or "").rstrip("/")
-                emit_workflow_event(
-                    "analysis.failed",
-                    run_id=run_id,
-                    status="failed",
-                    user_id=run.user_id,
-                    extra={
-                        "repo_url": run.repo_url or "",
-                        "error_message": str(e)[:2000],
-                        "links": {
-                            "report": f"{base}/report/{run_id}" if base else f"/report/{run_id}",
+                try:
+                    from app.utils.n8n_webhook import emit_workflow_event
+
+                    emit_workflow_event(
+                        "analysis.failed",
+                        run_id=run_id,
+                        status="failed",
+                        user_id=run.user_id,
+                        extra={
+                            "repo_url": run.repo_url or "",
+                            "error_message": str(e)[:2000],
+                            "links": {
+                                "report": f"{base}/report/{run_id}" if base else f"/report/{run_id}",
+                            },
                         },
-                    },
-                )
+                    )
+                except Exception:
+                    logger.exception("Workflow webhook emit failed (run %s already marked failed)", run_id)
         except Exception:
             pass
         return {"error": str(e)}

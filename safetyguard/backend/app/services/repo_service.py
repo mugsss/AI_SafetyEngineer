@@ -26,15 +26,26 @@ def _make_work_dir() -> str:
 
 
 def _git_env() -> dict[str, str]:
-    return {
-        **os.environ,
-        "GIT_TEMPLATE_DIR": "",
-        "GIT_LFS_SKIP_SMUDGE": "1",
+    """Subprocess env must be str->str only (some platforms choke on None)."""
+    env: dict[str, str] = {
+        k: v
+        for k, v in os.environ.items()
+        if isinstance(v, str)
     }
+    env["GIT_TEMPLATE_DIR"] = ""
+    env["GIT_LFS_SKIP_SMUDGE"] = "1"
+    return env
 
 
 def clone_repo(repo_url: str, branch: str = "main") -> str:
-    """Clone via the real `git` binary (more reliable than GitPython on some macOS setups)."""
+    """Clone via the system `git` binary (subprocess; no GitPython)."""
+    git_bin = shutil.which("git")
+    if not git_bin:
+        raise RuntimeError(
+            "git binary not found on PATH. Install Git (e.g. Xcode CLI tools or Homebrew) "
+            "and ensure `git --version` works in the same environment as the API server."
+        )
+
     base = _repos_base()
     os.makedirs(base, exist_ok=True)
     work_dir = os.path.join(base, f"sg_{uuid.uuid4().hex[:12]}")
@@ -51,12 +62,32 @@ def clone_repo(repo_url: str, branch: str = "main") -> str:
         )
 
     # Destination must not exist — git creates it
-    proc = _run(
-        ["git", "clone", "-v", "--depth", "1", "--branch", branch, repo_url, work_dir])
+    try:
+        proc = _run(
+            [
+                git_bin,
+                "clone",
+                "-v",
+                "--depth",
+                "1",
+                "--branch",
+                branch,
+                repo_url,
+                work_dir,
+            ]
+        )
+    except subprocess.TimeoutExpired as e:
+        shutil.rmtree(work_dir, ignore_errors=True)
+        raise RuntimeError("git clone timed out after 900s") from e
+
     if proc.returncode != 0:
         shutil.rmtree(work_dir, ignore_errors=True)
         work_dir = os.path.join(base, f"sg_{uuid.uuid4().hex[:12]}")
-        proc = _run(["git", "clone", "-v", "--depth", "1", repo_url, work_dir])
+        try:
+            proc = _run([git_bin, "clone", "-v", "--depth", "1", repo_url, work_dir])
+        except subprocess.TimeoutExpired as e:
+            shutil.rmtree(work_dir, ignore_errors=True)
+            raise RuntimeError("git clone timed out after 900s") from e
         if proc.returncode != 0:
             err = (proc.stderr or proc.stdout or "").strip() or f"exit {proc.returncode}"
             raise RuntimeError(f"git clone failed: {err}")
