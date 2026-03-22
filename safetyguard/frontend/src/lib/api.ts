@@ -11,8 +11,13 @@ import type {
 import type { Run, RunListResponse, CreateRunInput } from '@/types/run';
 import type { SafetyReport, DependencyGraph, CodeGraph } from '@/types/report';
 
-/** Strip trailing slashes so paths like `/api/runs` never become `//api/runs`. */
-const baseURL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000').replace(/\/+$/, '');
+/** 
+ * Use relative URLs for Next.js API routes in production.
+ * Only use NEXT_PUBLIC_API_URL if explicitly set (for dev with external backend).
+ */
+const baseURL = process.env.NEXT_PUBLIC_API_URL 
+  ? process.env.NEXT_PUBLIC_API_URL.replace(/\/+$/, '')
+  : '';
 
 /** Use for user-facing error messages (e.g. “cannot reach API”). */
 export function getApiBaseUrl(): string {
@@ -26,9 +31,8 @@ export function formatApiError(error: unknown): string {
   if (isAxiosError(error)) {
     if (!error.response) {
       return (
-        `Cannot reach the API at ${baseURL}. ` +
-        'Start the SafetyGuard backend (see safetyguard/README.md): `cd backend && uvicorn app.main:app --reload`. ' +
-        'If the UI uses a different host/port, set NEXT_PUBLIC_API_URL in frontend/.env.local to match.'
+        'Cannot reach the API. Please check your internet connection and try again. ' +
+        'If the problem persists, the service may be temporarily unavailable.'
       );
     }
     const data = error.response.data as { detail?: unknown } | undefined;
@@ -142,7 +146,7 @@ export const simulatorApi = {
 export const playgroundApi = {
   async query(input: PlaygroundInput): Promise<PlaygroundResult> {
     const { data } = await client.post<PlaygroundResult>(
-      '/api/playground',
+      '/api/playground/query',
       input,
     );
     return data;
@@ -185,13 +189,13 @@ export const settingsApi = {
   workflowWebhooks: {
     async list(): Promise<WorkflowWebhook[]> {
       const { data } = await client.get<WorkflowWebhook[]>(
-        '/api/settings/workflow-webhooks',
+        '/api/settings/webhooks',
       );
       return data;
     },
     async create(body: WorkflowWebhookCreateInput): Promise<WorkflowWebhook> {
       const { data } = await client.post<WorkflowWebhook>(
-        '/api/settings/workflow-webhooks',
+        '/api/settings/webhooks',
         body,
       );
       return data;
@@ -201,24 +205,24 @@ export const settingsApi = {
       body: WorkflowWebhookUpdateInput,
     ): Promise<WorkflowWebhook> {
       const { data } = await client.put<WorkflowWebhook>(
-        `/api/settings/workflow-webhooks/${id}`,
+        `/api/settings/webhooks/${id}`,
         body,
       );
       return data;
     },
     async remove(id: string): Promise<void> {
-      await client.delete(`/api/settings/workflow-webhooks/${id}`);
+      await client.delete(`/api/settings/webhooks/${id}`);
     },
     async test(url: string, secret?: string): Promise<{ success: boolean; message: string }> {
       const { data } = await client.post<{ success: boolean; message: string }>(
-        '/api/settings/workflow-webhooks/test',
+        '/api/settings/webhooks/test',
         { url, secret: secret || undefined },
       );
       return data;
     },
     async trigger(runId?: string): Promise<{ success: boolean; message: string }> {
       const { data } = await client.post<{ success: boolean; message: string }>(
-        '/api/settings/workflow-webhooks/trigger',
+        '/api/settings/webhooks/trigger',
         runId ? { run_id: runId } : {},
       );
       return data;
