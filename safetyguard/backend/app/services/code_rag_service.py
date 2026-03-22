@@ -13,21 +13,24 @@ from app.services.code_index_service import _embed_batch
 logger = logging.getLogger(__name__)
 
 
-def _load_collection(run_id: str):
-    import chromadb
-    from chromadb.config import Settings as ChromaSettings
+def _load_collection(run_id: str) -> tuple[Any | None, str | None]:
+    try:
+        import chromadb
+        from chromadb.config import Settings as ChromaSettings
+    except ModuleNotFoundError:
+        return None, "chromadb is not installed in the backend environment"
 
     index_dir = Path(settings.CODE_INDEX_DIR).resolve() / run_id
     if not index_dir.exists():
-        return None
+        return None, "No vector index directory found for this run"
     client = chromadb.PersistentClient(
         path=str(index_dir),
         settings=ChromaSettings(anonymized_telemetry=False),
     )
     try:
-        return client.get_collection("chunks")
+        return client.get_collection("chunks"), None
     except Exception:
-        return None
+        return None, "Vector collection not found for this run"
 
 
 def _build_adjacency(edges: list[dict[str, Any]]) -> dict[str, set[str]]:
@@ -76,7 +79,7 @@ def retrieve(
             "error": "empty query",
         }
 
-    coll = _load_collection(run_id)
+    coll, load_error = _load_collection(run_id)
     if coll is None:
         return {
             "chunks": [],
@@ -84,7 +87,10 @@ def retrieve(
             "highlight_edge_ids": [],
             "subgraph_nodes": [],
             "subgraph_edges": [],
-            "error": "No vector index for this run. Complete analysis with a real API key or re-run indexing.",
+            "error": (
+                load_error
+                or "No vector index for this run. Complete analysis with a real API key or re-run indexing."
+            ),
         }
 
     try:

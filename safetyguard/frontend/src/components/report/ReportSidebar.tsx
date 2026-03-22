@@ -14,6 +14,8 @@ import {
   Swords,
   Wrench,
   Network,
+  Orbit,
+  ExternalLink,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -27,15 +29,17 @@ export type ReportTab =
   | 'fixes';
 
 interface TabDefinition {
-  id: ReportTab;
+  id: ReportTab | 'physicsmap';
   label: string;
   icon: LucideIcon;
   dimension?: Dimension;
+  opensNewTab?: boolean;
 }
 
 const tabs: TabDefinition[] = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
   { id: 'codemap', label: 'Code map', icon: Network },
+  { id: 'physicsmap', label: 'Physics map', icon: Orbit, opensNewTab: true },
   { id: 'risk', label: 'Risk Severity', icon: AlertTriangle, dimension: 'risk' },
   { id: 'security', label: 'Security', icon: Shield, dimension: 'security' },
   { id: 'hallucinations', label: 'Hallucinations', icon: Brain, dimension: 'hallucinations' },
@@ -53,12 +57,14 @@ interface ReportSidebarProps {
   activeTab: ReportTab;
   onTabChange: (tab: ReportTab) => void;
   report?: SafetyReport;
+  runId: string;
 }
 
 export function ReportSidebar({
   activeTab,
   onTabChange,
   report,
+  runId,
 }: ReportSidebarProps) {
   return (
     <aside className="flex min-h-0 w-56 shrink-0 flex-col border-r border-border bg-card/50">
@@ -90,7 +96,13 @@ export function ReportSidebar({
             return (
               <button
                 key={tab.id}
-                onClick={() => onTabChange(tab.id)}
+                onClick={() => {
+                  if (tab.opensNewTab) {
+                    window.open(`/report/${runId}/physics-graph`, '_blank', 'noopener');
+                    return;
+                  }
+                  onTabChange(tab.id as ReportTab);
+                }}
                 className={cn(
                   'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
                   isActive
@@ -100,6 +112,7 @@ export function ReportSidebar({
               >
                 <Icon className="h-4 w-4 shrink-0" />
                 <span className="flex-1 text-left">{tab.label}</span>
+                {tab.opensNewTab && <ExternalLink className="h-3.5 w-3.5 shrink-0 opacity-70" />}
                 {findingCount != null && findingCount > 0 && (
                   <span className="rounded-full bg-secondary px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-muted-foreground">
                     {findingCount}

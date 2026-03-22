@@ -17,6 +17,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 _BACKEND_ROOT = Path(__file__).resolve().parent.parent
 # backend/ -> safetyguard/
 _REPO_ROOT = _BACKEND_ROOT.parent
+_DEFAULT_SQLITE_PATH = (_BACKEND_ROOT / "safetyguard.db").resolve()
 
 
 def _env_file_paths() -> tuple[str, ...]:
@@ -32,7 +33,8 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    DATABASE_URL: str = "sqlite:///./safetyguard.db"
+    # Use an absolute path so API/worker processes share one DB regardless of CWD.
+    DATABASE_URL: str = f"sqlite:///{_DEFAULT_SQLITE_PATH.as_posix()}"
     REDIS_URL: str = "redis://localhost:6379/0"
     SECRET_KEY: str = "dev-secret-key-change-in-production-min32"
     ALGORITHM: str = "HS256"

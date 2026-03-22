@@ -1,3 +1,6 @@
+import asyncio
+import logging
+
 from langgraph.graph import StateGraph, START, END
 
 from app.agents.state import SafetyGuardState
@@ -18,6 +21,8 @@ from app.agents.performance_agent import performance_agent
 from app.agents.resource_agent import resource_agent
 from app.agents.redteam_agent import redteam_agent
 from app.agents.synthesis_agent import synthesis_agent
+
+logger = logging.getLogger(__name__)
 
 
 def build_repo_understanding_graph() -> StateGraph:
@@ -87,9 +92,8 @@ def _repo_understanding(state: SafetyGuardState) -> dict:
 MAX_CONCURRENT_AGENTS = 1
 
 
-async def _run_agents_parallel(state: SafetyGuardState) -> dict:
-    import asyncio
-
+async def _dispatch_agents(state: SafetyGuardState) -> dict:
+    """Run enabled dimension agents on the current event loop (no nested asyncio.run)."""
     enabled = state.get("enabled_agents", {})
     agent_pairs = [
         (name, fn) for name, fn in AGENT_NODES.items()
@@ -114,27 +118,10 @@ async def _run_agents_parallel(state: SafetyGuardState) -> dict:
     for r in results:
         if isinstance(r, dict):
             merged.update(r)
+        elif isinstance(r, BaseException):
+            logger.warning("Dimension agent failed: %s", r)
 
     return merged
-
-
-def _dispatch_agents(state: SafetyGuardState) -> dict:
-    import asyncio
-
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        loop = None
-
-    if loop and loop.is_running():
-        import concurrent.futures
-        with concurrent.futures.ThreadPoolExecutor() as pool:
-            result = pool.submit(
-                asyncio.run, _run_agents_parallel(state)
-            ).result()
-        return result
-    else:
-        return asyncio.run(_run_agents_parallel(state))
 
 
 def build_safety_analysis_graph() -> StateGraph:

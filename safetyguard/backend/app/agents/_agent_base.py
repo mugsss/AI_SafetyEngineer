@@ -89,7 +89,17 @@ async def run_dimension_agent(
                 break
             messages.append(response)
             for tc in response.tool_calls:
-                tool_fn = next(t for t in tools if t.name == tc["name"])
+                tool_fn = next(
+                    (t for t in tools if t.name == tc.get("name")),
+                    None,
+                )
+                if tool_fn is None:
+                    logger.warning(
+                        "%s: LLM requested unknown tool %r; skipping.",
+                        agent_name,
+                        tc.get("name"),
+                    )
+                    continue
                 result = tool_fn.invoke(tc["args"])
                 messages.append({
                     "role": "tool",

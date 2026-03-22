@@ -159,34 +159,37 @@ def delete_run(
 
 
 @router.get("/{run_id}/status")
-async def run_status_sse(
-    run_id: str,
-    db: Session = Depends(get_db),
-):
+async def run_status_sse(run_id: str):
+    """SSE stream for run status. Uses a dedicated DB session for the stream lifetime."""
+
     async def event_stream():
-        while True:
-            run = db.query(AnalysisRun).filter(AnalysisRun.id == run_id).first()
-            if not run:
-                # Default event type "message" so EventSource.onmessage receives it
-                yield f"data: {json.dumps({'error': 'Run not found', 'status': 'failed'})}\n\n"
-                return
+        from app.database import SessionLocal
 
-            progress = _estimate_progress(run)
-            msg = _status_message(run, progress)
-            event_data = {
-                "run_id": run_id,
-                "status": run.status,
-                "progress": progress,
-                "message": msg,
-            }
-            # Must NOT use a custom event name — browsers only deliver those to addEventListener('name').
-            yield f"data: {json.dumps(event_data)}\n\n"
+        db = SessionLocal()
+        try:
+            while True:
+                run = db.query(AnalysisRun).filter(AnalysisRun.id == run_id).first()
+                if not run:
+                    yield f"data: {json.dumps({'error': 'Run not found', 'status': 'failed'})}\n\n"
+                    break
 
-            if run.status in ("completed", "failed"):
-                return
+                progress = _estimate_progress(run)
+                msg = _status_message(run, progress)
+                event_data = {
+                    "run_id": run_id,
+                    "status": run.status,
+                    "progress": progress,
+                    "message": msg,
+                }
+                yield f"data: {json.dumps(event_data)}\n\n"
 
-            db.expire_all()
-            await asyncio.sleep(2)
+                if run.status in ("completed", "failed"):
+                    break
+
+                db.expire_all()
+                await asyncio.sleep(2)
+        finally:
+            db.close()
 
     return StreamingResponse(
         event_stream(),
@@ -241,6 +244,8 @@ def _status_message(run: AnalysisRun, progress: int) -> str:
 
 def _run_mock_analysis(run_id: str, db: Session) -> None:
     from app.models.report import SafetyReport
+    from app.services.code_index_service import index_codebase
+    from app.services.repo_service import clone_repo, extract_upload, cleanup_repo
     from app.utils.mock_data import get_mock_findings, get_mock_dependency_graph
     from app.utils.scoring import augment_risk_findings, compute_dimension_scores, compute_overall_score
 
@@ -251,6 +256,33 @@ def _run_mock_analysis(run_id: str, db: Session) -> None:
     run.status = "running"
     run.started_at = datetime.utcnow()
     db.commit()
+
+    repo_path = None
+    idx_result = {
+        "graph": None,
+        "status": "skipped",
+        "error": None,
+        "vector_index_ready": False,
+    }
+    try:
+        if run.repo_url:
+            repo_path = clone_repo(run.repo_url, run.branch)
+        elif run.upload_id:
+            repo_path = extract_upload(run.upload_id)
+
+        if repo_path:
+            idx_result = index_codebase(run_id, repo_path)
+    except Exception as e:
+        logger.warning("Mock mode code indexing failed for run %s: %s", run_id, e)
+        idx_result = {
+            "graph": None,
+            "status": "failed",
+            "error": str(e)[:2000],
+            "vector_index_ready": False,
+        }
+    finally:
+        if repo_path:
+            cleanup_repo(repo_path)
 
     mock_findings = get_mock_findings()
     mock_graph = get_mock_dependency_graph()
@@ -296,6 +328,9 @@ def _run_mock_analysis(run_id: str, db: Session) -> None:
         dimension_scores=dimension_scores,
         findings=all_findings,
         dependency_graph=mock_graph,
+        code_graph=idx_result.get("graph"),
+        code_index_status=idx_result.get("status"),
+        code_index_error=idx_result.get("error"),
         executive_summary=executive_summary,
     )
     db.add(report)
