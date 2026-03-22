@@ -12,6 +12,7 @@ import {
   FlaskConical,
   Settings,
   Shield,
+  Bot,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -38,6 +39,12 @@ const overview: NavItem[] = [
 const pipeline: NavItem[] = [
   { label: 'Runs', href: '/runs', icon: PlayCircle, hint: 'History & status' },
   { label: 'New analysis', href: '/runs/new', icon: PlusCircle, hint: 'Repo or upload' },
+  {
+    label: 'Agent builder',
+    href: '/agents/build',
+    icon: Bot,
+    hint: 'Custom LLM agents',
+  },
 ];
 
 const labs: NavItem[] = [

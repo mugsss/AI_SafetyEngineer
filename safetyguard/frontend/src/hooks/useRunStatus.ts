@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import type { RunStatus } from '@/types/run';
+import { getBackendOriginForStreams } from '@/lib/api';
 
 interface RunStatusEvent {
   run_id: string;
@@ -9,8 +10,6 @@ interface RunStatusEvent {
   progress?: number;
   message?: string;
 }
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
 
 export function useRunStatus(runId: string | undefined) {
   const [status, setStatus] = useState<RunStatus>('pending');
@@ -31,7 +30,7 @@ export function useRunStatus(runId: string | undefined) {
       return;
     }
 
-    const url = `${API_URL}/api/runs/${runId}/status`;
+    const url = `${getBackendOriginForStreams()}/api/runs/${runId}/status`;
 
     let es: EventSource;
     try {

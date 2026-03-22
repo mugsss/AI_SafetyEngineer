@@ -114,3 +114,99 @@ async def run_dimension_agent(
         "current_agent": agent_name,
         "progress": progress,
     }
+
+
+async def run_custom_dimension_agent(
+    *,
+    slug: str,
+    display_name: str,
+    base_dimension: str,
+    system_prompt: str,
+    state: dict[str, Any],
+    progress: int,
+) -> dict[str, Any]:
+    """Like ``run_dimension_agent`` but stores findings under ``custom_findings_map[slug]``."""
+    agent_name = f"custom_{slug}"
+    repo_path = state.get("repo_path", ".")
+    static_findings = run_static_analysis(repo_path, base_dimension)
+
+    for f in static_findings:
+        if isinstance(f, dict) and not f.get("dimension"):
+            f["dimension"] = slug
+
+    if settings.is_mock_mode:
+        return {
+            "custom_findings_map": {slug: static_findings},
+            "current_agent": agent_name,
+            "progress": progress,
+        }
+
+    try:
+        tools = AGENT_TOOL_MAP.get(base_dimension, [])
+        llm = ChatOpenAI(**settings.get_llm_kwargs())
+        if tools:
+            llm = llm.bind_tools(tools)
+
+        static_summary = "\n".join(
+            f"- [{f['severity']}] {f['title']}: {f['description'][:120]}"
+            for f in static_findings[:10]
+        ) or "(none)"
+
+        context = (
+            f"Custom agent: {display_name} (slug={slug})\n"
+            f"Repo: {state.get('repo_summary', '')}\n"
+            f"Service map: {state.get('service_map', {})}\n"
+            f"Components: {state.get('component_summaries', {})}"
+        )
+
+        prompt = system_prompt
+        if "{static_summary}" in prompt:
+            prompt = prompt.format(static_summary=static_summary)
+
+        messages: list[dict[str, str] | Any] = [
+            {"role": "system", "content": prompt},
+            {
+                "role": "user",
+                "content": (
+                    f"{context}\n\nAnalyze and return a JSON array of NEW findings "
+                    "for this custom agent. Use dimension field as "
+                    f'"{slug}" or "{display_name}".'
+                ),
+            },
+        ]
+
+        for _ in range(5):
+            response = await llm.ainvoke(messages)
+            if not response.tool_calls:
+                break
+            messages.append(response)
+            for tc in response.tool_calls:
+                tool_fn = next(t for t in tools if t.name == tc["name"])
+                result = tool_fn.invoke(tc["args"])
+                messages.append({
+                    "role": "tool",
+                    "content": str(result),
+                    "tool_call_id": tc["id"],
+                })
+
+        raw = response.content
+        if isinstance(raw, list):
+            raw = "".join(str(x) for x in raw)
+        elif raw is None:
+            raw = ""
+        llm_findings = json.loads(raw)
+        if not isinstance(llm_findings, list):
+            llm_findings = []
+        for f in llm_findings:
+            if isinstance(f, dict) and not f.get("dimension"):
+                f["dimension"] = slug
+    except Exception as e:
+        logger.warning("%s LLM pass failed, using static only: %s", agent_name, e)
+        llm_findings = []
+
+    merged = merge_findings(static_findings, llm_findings)
+    return {
+        "custom_findings_map": {slug: merged},
+        "current_agent": agent_name,
+        "progress": progress,
+    }

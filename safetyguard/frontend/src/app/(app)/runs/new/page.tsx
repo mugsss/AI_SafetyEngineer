@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useDropzone } from 'react-dropzone';
 import { useForm, Controller } from 'react-hook-form';
@@ -25,6 +25,8 @@ import {
   ChevronRight,
   ChevronLeft,
   AlertCircle,
+  Bot,
+  Trash2,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { runsApi, uploadsApi, formatApiError } from '@/lib/api';
@@ -37,10 +39,20 @@ import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import type { UploadResponse } from '@/types/api';
+import type { StoredCustomAgentSpec } from '@/types/run';
+import Link from 'next/link';
 
 // ---------------------------------------------------------------------------
 // Schema
 // ---------------------------------------------------------------------------
+
+const customAgentSpecSchema = z.object({
+  slug: z.string(),
+  display_name: z.string(),
+  base_dimension: z.string(),
+  system_prompt: z.string(),
+  agent_python_stub: z.string().optional().nullable(),
+});
 
 const runSchema = z
   .object({
@@ -51,6 +63,7 @@ const runSchema = z
     uploadFilename: z.string().optional(),
     uploadSize: z.number().optional(),
     enabledAgents: z.record(z.boolean()),
+    customAgentSpecs: z.array(customAgentSpecSchema).optional(),
   })
   .refine(
     (d) => {
@@ -60,8 +73,13 @@ const runSchema = z
     { message: 'Provide a repository URL or upload a ZIP file', path: ['repoUrl'] },
   )
   .refine(
-    (d) => Object.values(d.enabledAgents).some(Boolean),
-    { message: 'Enable at least one agent', path: ['enabledAgents'] },
+    (d) =>
+      Object.values(d.enabledAgents).some(Boolean) ||
+      (d.customAgentSpecs?.length ?? 0) > 0,
+    {
+      message: 'Enable at least one built-in agent or add a custom agent',
+      path: ['enabledAgents'],
+    },
   );
 
 type RunFormValues = z.infer<typeof runSchema>;
@@ -173,9 +191,29 @@ export default function NewRunPage() {
       uploadFilename: undefined,
       uploadSize: undefined,
       enabledAgents: defaultAgents('full'),
+      customAgentSpecs: [] as StoredCustomAgentSpec[],
     },
     mode: 'onChange',
   });
+
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem('pendingCustomAgentSpecs');
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as StoredCustomAgentSpec | StoredCustomAgentSpec[];
+      const incoming = Array.isArray(parsed) ? parsed : [parsed];
+      const cur = form.getValues('customAgentSpecs') ?? [];
+      const merged = [...cur];
+      for (const s of incoming) {
+        if (!merged.some((x) => x.slug === s.slug)) merged.push(s);
+      }
+      form.setValue('customAgentSpecs', merged);
+    } catch {
+      /* ignore */
+    } finally {
+      sessionStorage.removeItem('pendingCustomAgentSpecs');
+    }
+  }, [form]);
 
   const { watch, setValue, trigger, formState: { errors } } = form;
   const targetType = watch('targetType');
@@ -183,6 +221,7 @@ export default function NewRunPage() {
   const uploadFilename = watch('uploadFilename');
   const uploadSize = watch('uploadSize');
   const enabledAgents = watch('enabledAgents');
+  const customAgentSpecs = watch('customAgentSpecs') ?? [];
   const repoUrl = watch('repoUrl');
   const branch = watch('branch');
 
@@ -221,6 +260,8 @@ export default function NewRunPage() {
         upload_id: targetType === 'zip' ? uploadId : undefined,
         branch,
         enabled_agents: enabledAgents,
+        custom_agents:
+          customAgentSpecs.length > 0 ? customAgentSpecs : undefined,
       }),
     onMutate: () => setCreateError(null),
     onSuccess: (run) => {
@@ -237,7 +278,9 @@ export default function NewRunPage() {
         if (targetType === 'git') return !!repoUrl?.trim() && !!branch.trim();
         return !!uploadId;
       case 1:
-        return Object.values(enabledAgents).some(Boolean);
+        return (
+          Object.values(enabledAgents).some(Boolean) || customAgentSpecs.length > 0
+        );
       case 2:
         return true;
       default:
@@ -251,7 +294,12 @@ export default function NewRunPage() {
       if (!valid) return;
     }
     if (step === 1) {
-      if (!Object.values(enabledAgents).some(Boolean)) return;
+      if (
+        !Object.values(enabledAgents).some(Boolean) &&
+        customAgentSpecs.length === 0
+      ) {
+        return;
+      }
     }
     setStep((s) => Math.min(s + 1, 3));
   };
@@ -300,6 +348,7 @@ export default function NewRunPage() {
           {step === 1 && (
             <StepAgents
               enabledAgents={enabledAgents}
+              customAgentSpecs={customAgentSpecs}
               onToggle={(key) =>
                 setValue('enabledAgents', {
                   ...enabledAgents,
@@ -308,6 +357,12 @@ export default function NewRunPage() {
               }
               onPreset={(preset) =>
                 setValue('enabledAgents', defaultAgents(preset))
+              }
+              onRemoveCustom={(slug) =>
+                setValue(
+                  'customAgentSpecs',
+                  customAgentSpecs.filter((s) => s.slug !== slug),
+                )
               }
             />
           )}
@@ -323,6 +378,7 @@ export default function NewRunPage() {
               branch={branch}
               uploadFilename={uploadFilename}
               enabledAgents={enabledAgents}
+              customAgentSpecs={customAgentSpecs}
             />
           )}
         </CardContent>
@@ -540,12 +596,21 @@ function StepTarget({
 
 interface StepAgentsProps {
   enabledAgents: Record<string, boolean>;
+  customAgentSpecs: StoredCustomAgentSpec[];
   onToggle: (key: string) => void;
   onPreset: (preset: 'quick' | 'full') => void;
+  onRemoveCustom: (slug: string) => void;
 }
 
-function StepAgents({ enabledAgents, onToggle, onPreset }: StepAgentsProps) {
-  const anyEnabled = Object.values(enabledAgents).some(Boolean);
+function StepAgents({
+  enabledAgents,
+  customAgentSpecs,
+  onToggle,
+  onPreset,
+  onRemoveCustom,
+}: StepAgentsProps) {
+  const anyEnabled =
+    Object.values(enabledAgents).some(Boolean) || customAgentSpecs.length > 0;
 
   return (
     <div className="space-y-6">
@@ -554,7 +619,7 @@ function StepAgents({ enabledAgents, onToggle, onPreset }: StepAgentsProps) {
           Select Agents
         </h3>
         <p className="text-sm text-muted-foreground">
-          Choose which safety dimensions to analyze.
+          Choose built-in safety dimensions and optionally attach custom agents from the builder.
         </p>
       </div>
 
@@ -609,9 +674,53 @@ function StepAgents({ enabledAgents, onToggle, onPreset }: StepAgentsProps) {
         })}
       </div>
 
+      <div className="rounded-lg border border-dashed border-primary/25 bg-primary/[0.04] p-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-2">
+            <Bot className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+            <div>
+              <p className="text-sm font-medium text-foreground">Custom agents</p>
+              <p className="text-xs text-muted-foreground">
+                Generate a mission-specific agent, then attach it here for this run.
+              </p>
+            </div>
+          </div>
+          <Button variant="secondary" size="sm" asChild>
+            <Link href="/agents/build">Open agent builder</Link>
+          </Button>
+        </div>
+        {customAgentSpecs.length > 0 && (
+          <ul className="mt-3 space-y-2">
+            {customAgentSpecs.map((s) => (
+              <li
+                key={s.slug}
+                className="flex items-center justify-between gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm"
+              >
+                <span className="min-w-0 truncate font-medium text-foreground">
+                  {s.display_name}{' '}
+                  <span className="text-xs font-normal text-muted-foreground">
+                    ({s.slug})
+                  </span>
+                </span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="shrink-0 text-muted-foreground hover:text-red-400"
+                  onClick={() => onRemoveCustom(s.slug)}
+                  aria-label={`Remove ${s.display_name}`}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
       {!anyEnabled && (
         <p className="text-sm text-red-400">
-          Enable at least one agent to continue.
+          Enable at least one built-in agent or add a custom agent to continue.
         </p>
       )}
     </div>
@@ -678,6 +787,7 @@ interface StepReviewProps {
   branch: string;
   uploadFilename?: string;
   enabledAgents: Record<string, boolean>;
+  customAgentSpecs: StoredCustomAgentSpec[];
 }
 
 function StepReview({
@@ -686,6 +796,7 @@ function StepReview({
   branch,
   uploadFilename,
   enabledAgents,
+  customAgentSpecs,
 }: StepReviewProps) {
   const activeAgents = AGENTS.filter((a) => enabledAgents[a.key]);
   const hasRedteam = !!enabledAgents['redteam'];
@@ -729,6 +840,15 @@ function StepReview({
                   </span>
                 );
               })}
+              {customAgentSpecs.map((s) => (
+                <span
+                  key={s.slug}
+                  className="inline-flex items-center gap-1 rounded-full border border-violet-500/35 bg-violet-500/10 px-2.5 py-0.5 text-xs font-medium text-violet-300"
+                >
+                  <Bot className="h-3 w-3" />
+                  {s.display_name}
+                </span>
+              ))}
             </div>
           </div>
         </CardContent>

@@ -1,3 +1,19 @@
-from app.routers import runs, reports, uploads, simulator, playground, settings
+from . import (
+    runs,
+    reports,
+    uploads,
+    simulator,
+    playground,
+    settings,
+    custom_agents,
+)
 
-__all__ = ["runs", "reports", "uploads", "simulator", "playground", "settings"]
+__all__ = [
+    "runs",
+    "reports",
+    "uploads",
+    "simulator",
+    "playground",
+    "settings",
+    "custom_agents",
+]

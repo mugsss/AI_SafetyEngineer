@@ -21,6 +21,15 @@ _DIMENSION_LABELS = {
 }
 
 
+def _label_for_dimension(dim_name: str, state: SafetyGuardState | None) -> str:
+    if state and str(dim_name).startswith("custom_"):
+        slug = str(dim_name)[len("custom_") :]
+        for spec in state.get("custom_agents") or []:
+            if str(spec.get("slug")) == slug:
+                return str(spec.get("display_name") or slug)
+    return _DIMENSION_LABELS.get(dim_name, str(dim_name).title())
+
+
 def _get_worst_severity(findings: list) -> str:
     rank = {s: i for i, s in enumerate(_SEVERITY_ORDER)}
     best_idx = len(_SEVERITY_ORDER)
@@ -36,11 +45,11 @@ def _get_worst_severity(findings: list) -> str:
     return worst
 
 
-def _generate_summary(dim_name: str, data: dict) -> str:
+def _generate_summary(dim_name: str, data: dict, state: SafetyGuardState | None = None) -> str:
     count = int(data.get("finding_count", 0))
     worst = str(data.get("worst_severity", "info"))
     score = float(data.get("score", 100))
-    label = _DIMENSION_LABELS.get(dim_name, dim_name.title())
+    label = _label_for_dimension(dim_name, state)
 
     if count == 0:
         return f"{label}: No issues detected. Score {score:.0f}/100."
@@ -74,7 +83,10 @@ def _generate_summary(dim_name: str, data: dict) -> str:
     )
 
 
-def _generate_recommendations(all_findings: dict) -> list[dict]:
+def _generate_recommendations(
+    all_findings: dict,
+    state: SafetyGuardState | None = None,
+) -> list[dict]:
     """Generate prioritized, actionable recommendations from findings."""
     recommendations: list[dict] = []
     severity_rank = {s: i for i, s in enumerate(_SEVERITY_ORDER)}
@@ -100,7 +112,7 @@ def _generate_recommendations(all_findings: dict) -> list[dict]:
             continue
         seen_fixes.add(fix.lower())
 
-        label = _DIMENSION_LABELS.get(dim_name, dim_name.title())
+        label = _label_for_dimension(dim_name, state)
         sev = finding.get("severity", "info")
         priority = "P0" if sev == "critical" else "P1" if sev == "high" else "P2"
 
@@ -122,6 +134,7 @@ def _generate_executive_summary(
     dim_scores: dict[str, float],
     all_findings: dict,
     recommendations: list[dict],
+    state: SafetyGuardState | None = None,
 ) -> str:
     """Narrative for leadership: merges weighted scoring context + P0/P1 actions."""
     # Weakest dimensions: only those that actually produced findings (feature/testing)
@@ -132,7 +145,7 @@ def _generate_executive_summary(
     }
     weakest = sorted(scored_dims.items(), key=lambda x: x[1])[:3]
     weakest_txt = (
-        ", ".join(f"{_DIMENSION_LABELS.get(d, d)} ({s:.0f})" for d, s in weakest)
+        ", ".join(f"{_label_for_dimension(d, state)} ({s:.0f})" for d, s in weakest)
         if weakest
         else "no scored findings yet"
     )
@@ -140,7 +153,7 @@ def _generate_executive_summary(
     # Strongest among all analyzed dimensions (merge-n8n behavior)
     strongest = sorted(dim_scores.items(), key=lambda x: x[1], reverse=True)[:2]
     strongest_txt = (
-        ", ".join(f"{_DIMENSION_LABELS.get(d, d)} ({s:.0f})" for d, s in strongest)
+        ", ".join(f"{_label_for_dimension(d, state)} ({s:.0f})" for d, s in strongest)
         if strongest
         else "n/a"
     )
@@ -259,21 +272,41 @@ async def synthesis_agent(state: SafetyGuardState) -> dict:
             "worst_severity": _get_worst_severity(findings),
         }
 
+    cfmap = state.get("custom_findings_map") or {}
+    if not isinstance(cfmap, dict):
+        cfmap = {}
+    for spec in state.get("custom_agents") or []:
+        slug = spec.get("slug")
+        if not slug:
+            continue
+        key = f"custom_{slug}"
+        if not enabled.get(key, False):
+            continue
+        findings = cfmap.get(slug, [])
+        if not isinstance(findings, list):
+            findings = []
+        all_findings[key] = {
+            "findings": findings,
+            "finding_count": len(findings),
+            "worst_severity": _get_worst_severity(findings),
+        }
+
     dimension_scores = compute_dimension_scores(all_findings)
     overall_score = compute_overall_score(dimension_scores, all_findings)
 
     for dim_name, data in all_findings.items():
         data["score"] = dimension_scores.get(dim_name, 100)
-        data["summary"] = _generate_summary(dim_name, data)
+        data["summary"] = _generate_summary(dim_name, data, state)
 
     augment_risk_findings(all_findings, dimension_scores)
 
-    recommendations = _generate_recommendations(all_findings)
+    recommendations = _generate_recommendations(all_findings, state)
     executive_summary = _generate_executive_summary(
         overall_score,
         dimension_scores,
         all_findings,
         recommendations,
+        state,
     )
 
     dep_graph = state.get("dependency_graph", _default_dependency_graph())

@@ -15,6 +15,18 @@ DIMENSION_WEIGHTS = {
     "redteam": 0.02,
 }
 
+# User-built agents: small weight each so they contribute without dominating.
+CUSTOM_DIMENSION_WEIGHT = 0.04
+
+
+def _weight_for_dimension(dim: str) -> float:
+    d = str(dim)
+    if d in DIMENSION_WEIGHTS:
+        return float(DIMENSION_WEIGHTS[d])
+    if d.startswith("custom_"):
+        return CUSTOM_DIMENSION_WEIGHT
+    return 0.0
+
 SEVERITY_PENALTIES = {
     "critical": 25,
     "high": 12,
@@ -83,7 +95,7 @@ def compute_overall_score(
     total_w = 0.0
     acc = 0.0
     for dim, score in dimension_scores.items():
-        w = DIMENSION_WEIGHTS.get(str(dim), 0.0)
+        w = _weight_for_dimension(str(dim))
         if all_findings is not None:
             finding_count = (all_findings.get(dim) or {}).get("finding_count", 0) or 0
             if finding_count == 0:
@@ -94,7 +106,7 @@ def compute_overall_score(
     # Fallback: if every agent found nothing, average all analyzed dims
     if total_w <= 0:
         for dim, score in dimension_scores.items():
-            w = DIMENSION_WEIGHTS.get(str(dim), 0.0)
+            w = _weight_for_dimension(str(dim))
             acc += w * float(score)
             total_w += w
 

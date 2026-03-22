@@ -12,7 +12,7 @@ A production-ready, full-stack multi-agent AI safety evaluation platform. Point 
 ```bash
 # 1. Copy env (single file for backend + frontend URL hints — lives in safetyguard/.env)
 cp .env.example .env
-# Edit .env: set SECRET_KEY (32+ chars), and optionally FEATHERLESS_API_KEY=mock for offline dev.
+# Edit .env: set SECRET_KEY (32+ chars). For LLMs: set OPENAI_API_KEY or FEATHERLESS_API_KEY; omit both or use FEATHERLESS_API_KEY=mock for offline mock analysis.
 
 # Frontend API URL (optional — defaults to localhost:8000 in code if missing)
 cp frontend/.env.example frontend/.env.local
@@ -34,6 +34,8 @@ celery -A app.tasks.analysis_tasks worker --loglevel=info
 cd frontend
 npm install
 npm run dev
+# If the UI calls the wrong host for API routes, set `NEXT_PUBLIC_API_URL=http://127.0.0.1:8000`
+# in `frontend/.env.local`, or omit it and rely on `next.config.mjs` rewrites (`/api/*` → FastAPI).
 # If the browser tab freezes or chunks fail to load, clear the Next cache and restart:
 # npm run dev:clean
 #
@@ -56,9 +58,13 @@ npm run dev
 - App: http://localhost:3000
 - API docs: http://localhost:8000/docs
 
+## LLM configuration
+
+The backend uses **OpenAI** if `OPENAI_API_KEY` is set (optional `OPENAI_BASE_URL`, `OPENAI_MODEL`). Otherwise it uses **Featherless** when `FEATHERLESS_API_KEY` is set and not `"mock"`. See `.env.example` for all variables.
+
 ## Mock Mode
 
-When `FEATHERLESS_API_KEY` is not set or set to `"mock"`, the backend returns deterministic mock findings so the UI can be developed without LLM costs.
+When **no** valid LLM key is configured (or `FEATHERLESS_API_KEY` is the literal `"mock"` and OpenAI is unset), the backend runs in mock mode: deterministic mock findings so the UI can be developed without LLM costs.
 
 ## n8n workflow automation (optional)
 

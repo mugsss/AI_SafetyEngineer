@@ -8,15 +8,40 @@ import type {
   WorkflowWebhookCreateInput,
   WorkflowWebhookUpdateInput,
 } from '@/types/api';
-import type { Run, RunListResponse, CreateRunInput } from '@/types/run';
+import type {
+  Run,
+  RunListResponse,
+  CreateRunInput,
+  StoredCustomAgentSpec,
+} from '@/types/run';
 import type { SafetyReport, DependencyGraph } from '@/types/report';
 
-/** Strip trailing slashes so paths like `/api/runs` never become `//api/runs`. */
-const baseURL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000').replace(/\/+$/, '');
+/**
+ * Axios base URL:
+ * - If `NEXT_PUBLIC_API_URL` is set → call FastAPI directly (must match uvicorn host/port).
+ * - If unset in the browser → `''` so requests go to the Next origin and `next.config.mjs`
+ *   rewrites `/api/*` to FastAPI (avoids wrong-host 404s).
+ * - On the server (SSR) → default `http://127.0.0.1:8000` when env is unset.
+ */
+function computeAxiosBaseURL(): string {
+  const raw = process.env.NEXT_PUBLIC_API_URL?.trim();
+  if (raw) return raw.replace(/\/+$/, '');
+  if (typeof window !== 'undefined') return '';
+  return 'http://127.0.0.1:8000';
+}
+
+const baseURL = computeAxiosBaseURL();
+
+/** Origin for EventSource / WebSocket — must hit FastAPI directly (rewrites do not apply). */
+export function getBackendOriginForStreams(): string {
+  const raw = process.env.NEXT_PUBLIC_API_URL?.trim();
+  if (raw) return raw.replace(/\/+$/, '');
+  return 'http://127.0.0.1:8000';
+}
 
 /** Use for user-facing error messages (e.g. “cannot reach API”). */
 export function getApiBaseUrl(): string {
-  return baseURL;
+  return baseURL || '(same origin → proxied to backend)';
 }
 
 /**
@@ -25,15 +50,32 @@ export function getApiBaseUrl(): string {
 export function formatApiError(error: unknown): string {
   if (isAxiosError(error)) {
     if (!error.response) {
+      const hint =
+        baseURL === ''
+          ? 'Ensure FastAPI is running on http://127.0.0.1:8000 (Next proxies /api/* there). '
+          : `Cannot reach ${baseURL}. `;
       return (
-        `Cannot reach the API at ${baseURL}. ` +
-        'Start the SafetyGuard backend (see safetyguard/README.md): `cd backend && uvicorn app.main:app --reload`. ' +
-        'If the UI uses a different host/port, set NEXT_PUBLIC_API_URL in frontend/.env.local to match.'
+        hint +
+        'Start the backend: `cd safetyguard/backend && py -3.11 -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000`. ' +
+        'Set NEXT_PUBLIC_API_URL in frontend/.env.local if the API is not on 127.0.0.1:8000.'
       );
     }
     const data = error.response.data as { detail?: unknown } | undefined;
     const detail = data?.detail;
-    if (typeof detail === 'string') return detail;
+    if (typeof detail === 'string') {
+      if (error.response.status === 404 && detail === 'Not Found') {
+        const u = error.config?.url ?? '';
+        const target = baseURL || `same-origin → ${getBackendOriginForStreams()}`;
+        return (
+          `API returned 404 Not Found for ${u}. ` +
+          `Target: ${target}. ` +
+          `Restart uvicorn from safetyguard/backend: py -3.11 -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000. ` +
+          `Confirm ${getBackendOriginForStreams()}/docs lists POST /api/custom-agents/generate. ` +
+          `Restart npm run dev after changing NEXT_PUBLIC_API_URL.`
+        );
+      }
+      return detail;
+    }
     if (Array.isArray(detail)) {
       return detail
         .map((item) =>
@@ -95,6 +137,52 @@ export const reportsApi = {
     const { data } = await client.get<DependencyGraph>(
       `/api/reports/${runId}/dependency-graph`,
       { timeout: 45_000 },
+    );
+    return data;
+  },
+};
+
+export interface GenerateCustomAgentInput {
+  name: string;
+  mission: string;
+  base_dimension: string;
+  constraints?: string | null;
+  output_emphasis?: string | null;
+  /** Write `app/agents/generated/{slug}/agent.py` + `system_prompt.txt` on the API server. */
+  export_generated_module?: boolean;
+}
+
+export interface GenerateCustomAgentResponse {
+  spec: StoredCustomAgentSpec;
+  exported_paths?: string[] | null;
+}
+
+export interface ExportAgentPackageInput {
+  slug: string;
+  display_name: string;
+  base_dimension: string;
+  system_prompt: string;
+}
+
+export interface ExportAgentPackageResponse {
+  exported_paths: string[];
+}
+
+export const customAgentsApi = {
+  async generate(input: GenerateCustomAgentInput): Promise<GenerateCustomAgentResponse> {
+    const { data } = await client.post<GenerateCustomAgentResponse>(
+      '/api/custom-agents/generate',
+      input,
+      { timeout: 120_000 },
+    );
+    return data;
+  },
+
+  async exportModule(input: ExportAgentPackageInput): Promise<ExportAgentPackageResponse> {
+    const { data } = await client.post<ExportAgentPackageResponse>(
+      '/api/custom-agents/export-module',
+      input,
+      { timeout: 60_000 },
     );
     return data;
   },

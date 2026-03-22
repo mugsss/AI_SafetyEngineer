@@ -1,0 +1,41 @@
+{
+  "analysis_completed": {
+    "event": "analysis.completed",
+    "source": "safetyguard",
+    "run_id": "run-123",
+    "status": "completed",
+    "repo_url": "https://github.com/example/repo",
+    "branch": "main",
+    "overall_score": 63,
+    "dimension_scores": {
+      "security": 51,
+      "privacy": 72,
+      "performance": 68
+    },
+    "executive_summary": "Multiple medium/high findings in auth and dependency management.",
+    "links": {
+      "report": "/report/run-123"
+    },
+    "source_action": "dashboard_button"
+  },
+  "analysis_failed": {
+    "event": "analysis.failed",
+    "source": "safetyguard",
+    "run_id": "run-124",
+    "status": "failed",
+    "repo_url": "https://github.com/example/repo",
+    "branch": "main",
+    "error_message": "Timeout in dependency graph extraction",
+    "links": {
+      "report": "/report/run-124"
+    }
+  },
+  "manual_trigger": {
+    "event": "workflow.manual_triggered",
+    "source": "safetyguard",
+    "run_id": "manual-trigger",
+    "status": "manual",
+    "source_action": "dashboard_button"
+  }
+}
+

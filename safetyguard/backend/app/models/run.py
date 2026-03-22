@@ -19,6 +19,7 @@ class AnalysisRun(Base):
     branch: Mapped[str] = mapped_column(String(255), default="main")
     status: Mapped[str] = mapped_column(String(20), default="pending")
     enabled_agents: Mapped[dict] = mapped_column(JSON, default=dict)
+    custom_agents: Mapped[list | None] = mapped_column(JSON, nullable=True)
     started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     error_message: Mapped[str | None] = mapped_column(String(2000), nullable=True)

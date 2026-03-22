@@ -9,17 +9,14 @@ logger = logging.getLogger(__name__)
 def execute_analysis(run_id: str) -> dict:
     """Core analysis logic -- runs independently of Celery.
 
-    Always uses the full LangGraph pipeline. In mock mode the agents perform
-    static analysis only (no LLM calls), so this is fast and still produces
-    real findings based on the actual repository code.
+    Always uses the full LangGraph pipeline. In mock mode the individual agents
+    perform static analysis only (no LLM calls), so this is fast and still
+    produces real findings based on actual repository code.
     """
     from app.database import SessionLocal
     from app.models.run import AnalysisRun
     from app.models.report import SafetyReport
     from app.services.repo_service import clone_repo, extract_upload, cleanup_repo
-    from app.utils.mock_data import get_mock_findings, get_mock_dependency_graph
-    from app.utils.scoring import augment_risk_findings, compute_dimension_scores, compute_overall_score
-    from app.utils.severity import canonical_severity, severity_rank
 
     db = SessionLocal()
     repo_path = None
@@ -33,65 +30,6 @@ def execute_analysis(run_id: str) -> dict:
         run.status = "running"
         run.started_at = datetime.utcnow()
         db.commit()
-
-        if settings.is_mock_mode:
-            mock_findings = get_mock_findings()
-            mock_graph = get_mock_dependency_graph()
-
-            all_findings = {}
-            for dim_name, findings in mock_findings.items():
-                enabled = (run.enabled_agents or {}).get(dim_name, False)
-                if not enabled:
-                    continue
-                worst_raw = "info"
-                for f in findings:
-                    raw = str(f.get("severity", "info"))
-                    if severity_rank(raw) < severity_rank(worst_raw):
-                        worst_raw = raw
-                all_findings[dim_name] = {
-                    "findings": findings,
-                    "finding_count": len(findings),
-                    "worst_severity": canonical_severity(worst_raw),
-                    "summary": (
-                        f"{len(findings)} {dim_name} issues found."
-                        if findings
-                        else f"No {dim_name} issues found."
-                    ),
-                }
-
-            dimension_scores = compute_dimension_scores(all_findings)
-            overall_score = compute_overall_score(dimension_scores, all_findings)
-
-            for dim_name in all_findings:
-                all_findings[dim_name]["score"] = dimension_scores.get(dim_name, 100)
-
-            augment_risk_findings(all_findings, dimension_scores)
-
-            executive_summary = (
-                f"SafetyGuard analysis complete. Overall safety score: {overall_score}/100. "
-                f"Found issues across multiple dimensions. "
-                f"Key areas of concern: "
-                + ", ".join(
-                    f"{d} ({s:.0f})"
-                    for d, s in sorted(dimension_scores.items(), key=lambda x: x[1])[:3]
-                )
-                + "."
-            )
-
-            report = SafetyReport(
-                run_id=run_id,
-                overall_score=overall_score,
-                dimension_scores=dimension_scores,
-                findings=all_findings,
-                dependency_graph=mock_graph,
-                executive_summary=executive_summary,
-            )
-            db.add(report)
-            run.status = "completed"
-            run.finished_at = datetime.utcnow()
-            db.commit()
-
-            return {"status": "completed", "overall_score": overall_score}
 
         if run.repo_url:
             repo_path = clone_repo(run.repo_url, run.branch)
@@ -107,6 +45,8 @@ def execute_analysis(run_id: str) -> dict:
             "repo_url": run.repo_url or "",
             "branch": run.branch,
             "enabled_agents": run.enabled_agents or {},
+            "custom_agents": run.custom_agents or [],
+            "custom_findings_map": {},
             "run_id": run_id,
             "status": "running",
             "progress": 0,

@@ -1,6 +1,7 @@
 import { io, Socket } from 'socket.io-client';
 
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL ?? 'http://localhost:8000';
+/** Match FastAPI host; cannot use Next rewrites. Socket.IO expects http(s) URL. */
+const WS_URL = process.env.NEXT_PUBLIC_WS_URL ?? 'http://127.0.0.1:8000';
 
 let socket: Socket | null = null;
 

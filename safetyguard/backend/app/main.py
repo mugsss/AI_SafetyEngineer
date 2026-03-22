@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.database import Base, engine
-from app.routers import runs, reports, uploads, simulator, playground, settings
+from app.routers import runs, reports, uploads, simulator, playground, settings, custom_agents
 
 # Register all models for create_all()
 import app.models  # noqa: F401
@@ -55,6 +55,7 @@ app.include_router(uploads.router, prefix="/api/uploads", tags=["uploads"])
 app.include_router(simulator.router, prefix="/api/simulator", tags=["simulator"])
 app.include_router(playground.router, prefix="/api/playground", tags=["playground"])
 app.include_router(settings.router, prefix="/api/settings", tags=["settings"])
+app.include_router(custom_agents.router, prefix="/api/custom-agents", tags=["custom-agents"])
 
 
 @app.get("/health")

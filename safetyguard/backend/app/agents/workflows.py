@@ -1,3 +1,5 @@
+from typing import Any
+
 from langgraph.graph import StateGraph, START, END
 
 from app.agents.state import SafetyGuardState
@@ -68,6 +70,7 @@ def _load_inputs(state: SafetyGuardState) -> dict:
         "performance_findings": [],
         "resource_findings": [],
         "redteam_findings": [],
+        "custom_findings_map": state.get("custom_findings_map") or {},
     }
 
 
@@ -87,14 +90,41 @@ def _repo_understanding(state: SafetyGuardState) -> dict:
 MAX_CONCURRENT_AGENTS = 1
 
 
+def _make_custom_runner(spec: dict, progress: int):
+    from app.agents._agent_base import run_custom_dimension_agent
+
+    async def _run(state_inner: SafetyGuardState) -> dict:
+        return await run_custom_dimension_agent(
+            slug=str(spec["slug"]),
+            display_name=str(spec.get("display_name") or spec["slug"]),
+            base_dimension=str(spec["base_dimension"]),
+            system_prompt=str(spec["system_prompt"]),
+            state=state_inner,
+            progress=progress,
+        )
+
+    return _run
+
+
 async def _run_agents_parallel(state: SafetyGuardState) -> dict:
     import asyncio
 
     enabled = state.get("enabled_agents", {})
-    agent_pairs = [
+    agent_pairs: list[tuple[str, Any]] = [
         (name, fn) for name, fn in AGENT_NODES.items()
         if enabled.get(name, False)
     ]
+
+    custom_specs = state.get("custom_agents") or []
+    for i, spec in enumerate(custom_specs):
+        slug = spec.get("slug")
+        if not slug:
+            continue
+        key = f"custom_{slug}"
+        if not enabled.get(key, False):
+            continue
+        progress = min(78, 32 + i * 9)
+        agent_pairs.append((key, _make_custom_runner(spec, progress)))
 
     if not agent_pairs:
         return {"progress": 80}
@@ -111,9 +141,19 @@ async def _run_agents_parallel(state: SafetyGuardState) -> dict:
     )
 
     merged: dict = {"progress": 80}
+    custom_map: dict[str, list] = {}
     for r in results:
-        if isinstance(r, dict):
-            merged.update(r)
+        if not isinstance(r, dict):
+            continue
+        cm = r.get("custom_findings_map")
+        if isinstance(cm, dict):
+            custom_map.update(cm)
+        for k, v in r.items():
+            if k == "custom_findings_map":
+                continue
+            merged[k] = v
+    if custom_map:
+        merged["custom_findings_map"] = custom_map
 
     return merged
 
