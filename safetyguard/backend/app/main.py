@@ -1,12 +1,33 @@
-from fastapi import FastAPI
+import logging
+
+from fastapi import FastAPI, Request
+from fastapi.exceptions import HTTPException, RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.database import Base, engine
 from app.routers import auth, runs, reports, uploads, simulator, playground, settings
 
+logger = logging.getLogger(__name__)
+
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="SafetyGuard MAS API", version="1.0.0")
+
+
+@app.middleware("http")
+async def log_unhandled_exceptions(request: Request, call_next):
+    """Catch real server bugs; let HTTPException / validation pass through."""
+    try:
+        return await call_next(request)
+    except (HTTPException, RequestValidationError):
+        raise
+    except Exception:
+        logger.exception("Unhandled exception on %s %s", request.method, request.url.path)
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "Internal server error. Check backend terminal logs."},
+        )
 
 # Dev: allow localhost / 127.0.0.1 on any port (3000 vs 3001, hostname mismatch, etc.)
 app.add_middleware(

@@ -52,7 +52,7 @@ export function Topbar() {
   const subtitle = getPageSubtitle(pathname);
 
   return (
-    <header className="sticky top-0 z-30 flex min-h-14 items-center justify-between gap-3 border-b border-border/50 bg-background/80 px-4 py-2 backdrop-blur-md lg:px-8">
+    <header className="sticky top-0 z-30 flex min-h-14 items-center justify-between gap-3 border-b border-border/50 bg-background px-4 py-2 lg:px-8">
       <div className="flex min-w-0 flex-1 items-center gap-3">
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetTrigger asChild>

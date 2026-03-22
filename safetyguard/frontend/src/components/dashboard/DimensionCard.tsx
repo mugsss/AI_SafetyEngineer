@@ -1,7 +1,6 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { motion } from 'framer-motion';
 import {
   Shield,
   AlertTriangle,
@@ -50,7 +49,6 @@ interface DimensionCardProps {
   score: number;
   worstSeverity: Severity;
   findingCount: number;
-  /** When empty, the card is display-only (no navigation). */
   runId?: string;
   index?: number;
 }
@@ -61,7 +59,6 @@ export function DimensionCard({
   worstSeverity,
   findingCount,
   runId,
-  index = 0,
 }: DimensionCardProps) {
   const router = useRouter();
   const meta = dimensionMeta[dimension];
@@ -69,10 +66,7 @@ export function DimensionCard({
   const pct = Math.min(Math.max(score, 0), 100);
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.05, duration: 0.4, ease: 'easeOut' }}
+    <div
       className={cn(
         'group rounded-xl border border-border bg-card p-5',
         runId &&
@@ -103,13 +97,11 @@ export function DimensionCard({
       </div>
 
       <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-secondary">
-        <motion.div
+        <div
           className={cn('h-full rounded-full', getScoreColor(score))}
-          initial={{ width: 0 }}
-          animate={{ width: `${pct}%` }}
-          transition={{ delay: index * 0.05 + 0.3, duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+          style={{ width: `${pct}%` }}
         />
       </div>
-    </motion.div>
+    </div>
   );
 }

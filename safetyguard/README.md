@@ -36,7 +36,22 @@ npm install
 npm run dev
 # If the browser tab freezes or chunks fail to load, clear the Next cache and restart:
 # npm run dev:clean
+#
+# If Chrome tabs keep crashing (Aw, Snap!) while developing: stop duplicate servers —
+# only one `next dev` and one `uvicorn` should listen on 3000/8000. Example:
+#   lsof -iTCP:3000 -sTCP:LISTEN; lsof -iTCP:8000 -sTCP:LISTEN
+#   pkill -f "next dev"; pkill -f uvicorn
+# Then start a single frontend + backend again.
 ```
+
+### “Internal Server Error” in the browser
+
+- **Next.js (localhost:3000):** Often a **stale `.next` cache** or a dev-server glitch. Run `cd frontend && npm run dev:clean`. Ensure only **one** `next dev` is running.
+- **API (localhost:8000):** The backend logs the traceback in the terminal where `uvicorn` runs. Fix the underlying error (DB path, missing env, etc.). Real bugs return JSON `{"detail":"..."}` with HTTP 500.
+
+**Why tabs sometimes crash during local dev:** Chrome’s GPU process can choke on stacked `backdrop-blur`, large `blur-*` filters, and heavy animation libraries. This frontend intentionally avoids those patterns on the home page, dashboard, and report views. If crashes persist, update Chrome, disable “Use hardware acceleration” temporarily in settings, or try another browser to confirm it’s GPU-related.
+
+**Stability notes (2025):** The report view uses native `overflow-y-auto` instead of Radix `ScrollArea` (avoids ResizeObserver loops). A root **React error boundary** shows a recovery UI instead of a blank screen if a component throws. **React Query** has `refetchOnWindowFocus: false` by default to reduce request storms when switching back to the tab. Live run status uses **EventSource** with safe teardown; if the backend is down, the stream closes cleanly instead of spinning forever.
 
 - App: http://localhost:3000
 - API docs: http://localhost:8000/docs

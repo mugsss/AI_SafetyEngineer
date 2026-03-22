@@ -27,10 +27,20 @@ export function useRunStatus(runId: string | undefined) {
 
   useEffect(() => {
     if (!runId) return;
+    if (typeof window === 'undefined' || typeof EventSource === 'undefined') {
+      return;
+    }
 
     const url = `${API_URL}/api/runs/${runId}/status`;
 
-    const es = new EventSource(url);
+    let es: EventSource;
+    try {
+      es = new EventSource(url);
+    } catch {
+      setMessage('Live status unavailable in this browser.');
+      return;
+    }
+
     eventSourceRef.current = es;
 
     es.onmessage = (event) => {
@@ -40,6 +50,7 @@ export function useRunStatus(runId: string | undefined) {
           setMessage(data.error);
           setStatus('failed');
           es.close();
+          eventSourceRef.current = null;
           return;
         }
         setStatus(data.status);
@@ -48,6 +59,7 @@ export function useRunStatus(runId: string | undefined) {
 
         if (data.status === 'completed' || data.status === 'failed') {
           es.close();
+          eventSourceRef.current = null;
         }
       } catch {
         // ignore malformed messages
@@ -55,11 +67,20 @@ export function useRunStatus(runId: string | undefined) {
     };
 
     es.onerror = () => {
-      es.close();
+      try {
+        es.close();
+      } catch {
+        /* ignore */
+      }
+      eventSourceRef.current = null;
     };
 
     return () => {
-      es.close();
+      try {
+        es.close();
+      } catch {
+        /* ignore */
+      }
       eventSourceRef.current = null;
     };
   }, [runId]);

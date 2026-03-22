@@ -128,7 +128,6 @@ export default function Home() {
     <div className="min-h-screen bg-background">
       {/* Full-screen hero with built-in nav */}
       <ResponsiveHeroBanner
-        backgroundImageUrl="https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=3840&q=80"
         navLinks={[
           { label: 'Home', href: '/', isActive: true },
           { label: 'Dashboard', href: '/dashboard' },

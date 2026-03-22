@@ -5,7 +5,7 @@ import { AppSidebarNav, SidebarBrand } from '@/components/layout/sidebar-nav';
 
 export function Sidebar() {
   return (
-    <aside className="fixed inset-y-0 left-0 z-40 hidden h-screen w-72 flex-col border-r border-border/50 bg-card/95 bg-gradient-to-b from-card via-card/98 to-background/95 shadow-[12px_0_40px_-24px_rgba(0,0,0,0.65)] backdrop-blur-md lg:flex">
+    <aside className="fixed inset-y-0 left-0 z-40 hidden h-screen w-72 flex-col border-r border-border/50 bg-card bg-gradient-to-b from-card via-card to-background shadow-[12px_0_40px_-24px_rgba(0,0,0,0.65)] lg:flex">
       <div className="flex h-full min-h-0 flex-col px-5 pb-6 pt-7">
         <SidebarBrand />
         <Separator className="my-5 shrink-0 bg-border/50" />

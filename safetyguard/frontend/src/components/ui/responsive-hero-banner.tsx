@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import { Shield } from 'lucide-react';
 
 interface NavLink {
   label: string;
@@ -10,7 +11,6 @@ interface NavLink {
 }
 
 interface ResponsiveHeroBannerProps {
-  backgroundImageUrl?: string;
   navLinks?: NavLink[];
   ctaButtonText?: string;
   ctaButtonHref?: string;
@@ -27,8 +27,14 @@ interface ResponsiveHeroBannerProps {
   partnerNames?: string[];
 }
 
+/**
+ * Home hero — intentionally avoids:
+ * - backdrop-blur (GPU compositor cost / tab crashes in Chrome)
+ * - staggered opacity/transform animations on mount
+ * - gradient text (bg-clip-text) which forces extra compositing layers
+ * - multiple stacked radial gradients
+ */
 const ResponsiveHeroBanner: React.FC<ResponsiveHeroBannerProps> = ({
-  backgroundImageUrl = 'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=3840&q=80',
   navLinks = [
     { label: 'Home', href: '/', isActive: true },
     { label: 'Dashboard', href: '/dashboard' },
@@ -54,43 +60,32 @@ const ResponsiveHeroBanner: React.FC<ResponsiveHeroBannerProps> = ({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
-    <section className="w-full isolate min-h-screen overflow-hidden relative">
-      {/* Background image — next/image not used here because this is a full-screen decorative bg */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={backgroundImageUrl}
-        alt=""
-        className="w-full h-full object-cover absolute inset-0"
+    <section className="relative isolate min-h-screen w-full overflow-hidden bg-[#07080c]">
+      {/* Single flat gradient — no images, minimal layers */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[#0c1220] via-[#07080c] to-[#050508]"
       />
-      {/* Dark overlay for readability */}
-      <div className="absolute inset-0 bg-black/65" />
-      <div className="pointer-events-none absolute inset-0 ring-1 ring-black/30" />
 
-      {/* Header */}
-      <header className="z-10 relative">
+      <header className="relative z-10">
         <div className="mx-6">
           <div className="flex items-center justify-between pt-4">
-            {/* Logo / brand */}
-            <Link href="/" className="inline-flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/20 ring-1 ring-blue-400/30">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                </svg>
+            <Link href="/" className="inline-flex shrink-0 items-center gap-2">
+              {/* shrink-0 + overflow-hidden: inline SVGs in flex rows can otherwise stretch to huge bounds in Chrome */}
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-blue-500/15 ring-1 ring-blue-400/25">
+                <Shield className="h-4 w-4 shrink-0 text-blue-400" strokeWidth={2} aria-hidden />
               </div>
               <span className="text-sm font-bold tracking-tight text-white">SafetyGuard</span>
             </Link>
 
-            {/* Desktop nav */}
-            <nav className="hidden md:flex items-center gap-2">
-              <div className="flex items-center gap-1 rounded-full bg-white/5 px-1 py-1 ring-1 ring-white/10 backdrop-blur">
+            <nav className="hidden items-center gap-2 md:flex">
+              <div className="flex items-center gap-0.5 rounded-full border border-white/10 bg-[#12141c]/95 px-1 py-1">
                 {navLinks.map((link, index) => (
                   <Link
                     key={index}
                     href={link.href}
-                    className={`px-3 py-2 text-sm font-medium transition-colors font-sans rounded-full ${
-                      link.isActive
-                        ? 'text-white bg-white/10'
-                        : 'text-white/70 hover:text-white'
+                    className={`rounded-full px-3 py-2 font-sans text-sm font-medium transition-colors ${
+                      link.isActive ? 'bg-white/10 text-white' : 'text-white/70 hover:text-white'
                     }`}
                   >
                     {link.label}
@@ -98,7 +93,7 @@ const ResponsiveHeroBanner: React.FC<ResponsiveHeroBannerProps> = ({
                 ))}
                 <Link
                   href={ctaButtonHref}
-                  className="ml-1 inline-flex items-center gap-2 rounded-full bg-white px-3.5 py-2 text-sm font-medium text-neutral-900 hover:bg-white/90 font-sans transition-colors"
+                  className="ml-1 inline-flex items-center gap-2 rounded-full bg-white px-3.5 py-2 font-sans text-sm font-medium text-neutral-900 transition-opacity hover:opacity-90"
                 >
                   {ctaButtonText}
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -109,10 +104,10 @@ const ResponsiveHeroBanner: React.FC<ResponsiveHeroBannerProps> = ({
               </div>
             </nav>
 
-            {/* Mobile menu toggle */}
             <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/10 ring-1 ring-white/15 backdrop-blur"
+              type="button"
+              onClick={() => setMobileMenuOpen((o) => !o)}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/10 md:hidden"
               aria-expanded={mobileMenuOpen}
               aria-label="Toggle menu"
             >
@@ -133,15 +128,14 @@ const ResponsiveHeroBanner: React.FC<ResponsiveHeroBannerProps> = ({
             </button>
           </div>
 
-          {/* Mobile menu */}
           {mobileMenuOpen && (
-            <div className="md:hidden mt-2 rounded-2xl bg-black/80 ring-1 ring-white/10 backdrop-blur p-4 space-y-1">
+            <div className="mt-2 space-y-1 rounded-2xl border border-white/10 bg-[#0a0c12] p-4 md:hidden">
               {navLinks.map((link, index) => (
                 <Link
                   key={index}
                   href={link.href}
                   onClick={() => setMobileMenuOpen(false)}
-                  className="block px-4 py-2.5 rounded-xl text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white transition-colors"
+                  className="block rounded-xl px-4 py-2.5 text-sm font-medium text-white/80 transition-colors hover:bg-white/10 hover:text-white"
                 >
                   {link.label}
                 </Link>
@@ -149,7 +143,7 @@ const ResponsiveHeroBanner: React.FC<ResponsiveHeroBannerProps> = ({
               <Link
                 href={ctaButtonHref}
                 onClick={() => setMobileMenuOpen(false)}
-                className="block mt-2 text-center rounded-full bg-white py-2.5 text-sm font-semibold text-neutral-900"
+                className="mt-2 block rounded-full bg-white py-2.5 text-center text-sm font-semibold text-neutral-900"
               >
                 {ctaButtonText}
               </Link>
@@ -158,39 +152,30 @@ const ResponsiveHeroBanner: React.FC<ResponsiveHeroBannerProps> = ({
         </div>
       </header>
 
-      {/* Hero content */}
-      <div className="z-10 relative">
-        <div className="sm:pt-28 md:pt-32 lg:pt-40 max-w-7xl mx-auto pt-28 px-6 pb-16">
+      <div className="relative z-10">
+        <div className="mx-auto max-w-7xl px-6 pb-16 pt-28 sm:pt-28 md:pt-32 lg:pt-40">
           <div className="mx-auto max-w-3xl text-center">
-            {/* Badge */}
-            <div className="mb-6 inline-flex items-center gap-3 rounded-full bg-white/10 px-2.5 py-2 ring-1 ring-white/15 backdrop-blur animate-fade-slide-in-1">
-              <span className="inline-flex items-center text-xs font-medium text-neutral-900 bg-white/90 rounded-full py-0.5 px-2 font-sans">
+            <div className="mb-6 inline-flex items-center gap-3 rounded-full border border-white/10 bg-[#12141c] px-2.5 py-2">
+              <span className="inline-flex items-center rounded-full bg-white px-2 py-0.5 font-sans text-xs font-medium text-neutral-900">
                 {badgeLabel}
               </span>
-              <span className="text-sm font-medium text-white/90 font-sans">
-                {badgeText}
-              </span>
+              <span className="font-sans text-sm font-medium text-white/90">{badgeText}</span>
             </div>
 
-            {/* Headline */}
-            <h1 className="sm:text-5xl md:text-6xl lg:text-7xl leading-tight text-4xl text-white tracking-tight font-serif font-normal animate-fade-slide-in-2">
+            <h1 className="font-serif text-4xl font-normal leading-tight tracking-tight text-white sm:text-5xl md:text-6xl lg:text-7xl">
               {title}
               <br className="hidden sm:block" />
-              <span className="bg-gradient-to-r from-blue-400 to-indigo-300 bg-clip-text text-transparent">
-                {titleLine2}
-              </span>
+              <span className="text-blue-400">{titleLine2}</span>
             </h1>
 
-            {/* Description */}
-            <p className="sm:text-lg animate-fade-slide-in-3 text-base text-white/75 max-w-2xl mt-6 mx-auto leading-relaxed">
+            <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-white/75 sm:text-lg">
               {description}
             </p>
 
-            {/* CTA buttons */}
-            <div className="flex flex-col sm:flex-row sm:gap-4 mt-10 gap-3 items-center justify-center animate-fade-slide-in-4">
+            <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row sm:gap-4">
               <Link
                 href={primaryButtonHref}
-                className="inline-flex items-center gap-2 hover:bg-white/20 text-sm font-semibold text-white bg-white/10 ring-white/20 ring-1 rounded-full py-3 px-6 font-sans transition-colors backdrop-blur"
+                className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-6 py-3 font-sans text-sm font-semibold text-white transition-colors hover:bg-white/15"
               >
                 {primaryButtonText}
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -200,7 +185,7 @@ const ResponsiveHeroBanner: React.FC<ResponsiveHeroBannerProps> = ({
               </Link>
               <Link
                 href={secondaryButtonHref}
-                className="inline-flex items-center gap-2 rounded-full bg-transparent px-5 py-3 text-sm font-medium text-white/80 hover:text-white font-sans transition-colors"
+                className="inline-flex items-center gap-2 rounded-full px-5 py-3 font-sans text-sm font-medium text-white/80 transition-colors hover:text-white"
               >
                 {secondaryButtonText}
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -211,18 +196,15 @@ const ResponsiveHeroBanner: React.FC<ResponsiveHeroBannerProps> = ({
             </div>
           </div>
 
-          {/* Dimensions strip */}
-          <div className="mx-auto mt-20 max-w-5xl animate-fade-slide-in-1">
-            <p className="text-sm text-white/60 text-center mb-6">
-              {partnersTitle}
-            </p>
+          <div className="mx-auto mt-20 max-w-5xl">
+            <p className="mb-6 text-center text-sm text-white/60">{partnersTitle}</p>
             <div className="flex flex-wrap items-center justify-center gap-2">
               {partnerNames.map((name, index) => (
                 <span
                   key={index}
-                  className="inline-flex items-center gap-1.5 rounded-full bg-white/8 px-3.5 py-1.5 text-xs font-medium text-white/70 ring-1 ring-white/10 backdrop-blur"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-[#12141c] px-3.5 py-1.5 text-xs font-medium text-white/70"
                 >
-                  <span className="h-1.5 w-1.5 rounded-full bg-blue-400/70" />
+                  <span className="h-1.5 w-1.5 rounded-full bg-blue-400/80" />
                   {name}
                 </span>
               ))}

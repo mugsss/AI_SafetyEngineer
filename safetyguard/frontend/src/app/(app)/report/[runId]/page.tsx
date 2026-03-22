@@ -2,7 +2,6 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
-import { motion } from 'framer-motion';
 import {
   Loader2,
   AlertTriangle,
@@ -20,7 +19,6 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { RunStatusBadge } from '@/components/shared/RunStatusBadge';
 import { SeverityBadge } from '@/components/shared/SeverityBadge';
 import { ScoreBar } from '@/components/shared/ScoreBar';
@@ -241,11 +239,7 @@ function RedTeamTab({ report }: { report: SafetyReport }) {
       </div>
 
       {hasCritical && (
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex items-center gap-3 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3"
-        >
+        <div className="flex items-center gap-3 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3">
           <AlertTriangle className="h-5 w-5 shrink-0 text-red-400" />
           <div>
             <p className="text-sm font-semibold text-red-400">
@@ -256,7 +250,7 @@ function RedTeamTab({ report }: { report: SafetyReport }) {
               testing.
             </p>
           </div>
-        </motion.div>
+        </div>
       )}
 
       <Card>
@@ -403,17 +397,8 @@ function RunningState({
 }) {
   return (
     <div className="flex flex-1 items-center justify-center">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="flex w-full max-w-md flex-col items-center gap-6 rounded-xl border border-border bg-card p-8"
-      >
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
-        >
-          <Loader2 className="h-12 w-12 text-primary" />
-        </motion.div>
+      <div className="flex w-full max-w-md flex-col items-center gap-6 rounded-xl border border-border bg-card p-8">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
         <div className="space-y-2 text-center">
           <h3 className="text-lg font-semibold text-foreground">
             Analysis In Progress
@@ -432,7 +417,7 @@ function RunningState({
             <span className="shrink-0 tabular-nums">{Math.round(progress)}%</span>
           </div>
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 }
@@ -558,13 +543,13 @@ export default function ReportPage() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-theme(spacing.16))] -m-6">
+    <div className="flex min-h-0 h-[calc(100vh-theme(spacing.16))] -m-6">
       <ReportSidebar
         activeTab={activeTab}
         onTabChange={setActiveTab}
         report={report}
       />
-      <ScrollArea className="flex-1">
+      <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
         <div className="p-6">
           <div className="mb-6 flex items-center gap-3">
             <Button variant="ghost" size="sm" asChild>
@@ -591,7 +576,7 @@ export default function ReportPage() {
             onTabChange={setActiveTab}
           />
         </div>
-      </ScrollArea>
+      </div>
     </div>
   );
 }

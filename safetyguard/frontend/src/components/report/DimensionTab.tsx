@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { motion } from 'framer-motion';
 import { Filter } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScoreBar } from '@/components/shared/ScoreBar';
@@ -130,26 +129,11 @@ export function DimensionTab({ name, data, className }: DimensionTabProps) {
           </p>
         </div>
       ) : (
-        <motion.div
-          className="space-y-3"
-          initial="hidden"
-          animate="visible"
-          variants={{
-            visible: { transition: { staggerChildren: 0.05 } },
-          }}
-        >
+        <div className="space-y-3">
           {filteredFindings.map((finding) => (
-            <motion.div
-              key={finding.id}
-              variants={{
-                hidden: { opacity: 0, y: 8 },
-                visible: { opacity: 1, y: 0 },
-              }}
-            >
-              <FindingCard finding={finding} />
-            </motion.div>
+            <FindingCard key={finding.id} finding={finding} />
           ))}
-        </motion.div>
+        </div>
       )}
     </div>
   );

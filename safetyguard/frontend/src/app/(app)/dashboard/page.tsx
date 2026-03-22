@@ -86,7 +86,7 @@ function EmptyState() {
   return (
     <div className="flex flex-col items-center justify-center py-20 text-center">
       <div className="relative">
-        <div className="absolute inset-0 animate-pulse rounded-3xl bg-primary/10 blur-xl" />
+        <div className="absolute inset-0 animate-pulse rounded-3xl bg-primary/15" />
         <div className="relative rounded-2xl border border-border bg-card p-8">
           <Rocket className="mx-auto h-14 w-14 text-primary" />
         </div>
@@ -125,13 +125,20 @@ function RecentRunRow({ run }: { run: Run }) {
           <p className="text-xs text-muted-foreground">{relativeTime(run.created_at)}</p>
         </div>
         <div className="flex shrink-0 items-center gap-3">
-          {run.status === 'completed' && run.report && (
-            <span className={cn(
-              'text-sm font-bold tabular-nums',
-              run.report.overall_score >= 70 ? 'text-green-400' :
-              run.report.overall_score >= 40 ? 'text-yellow-400' : 'text-red-400'
-            )}>
-              {Math.round(run.report.overall_score)}
+          {run.status === 'completed' &&
+            run.report != null &&
+            Number.isFinite(Number(run.report.overall_score)) && (
+            <span
+              className={cn(
+                'text-sm font-bold tabular-nums',
+                Number(run.report.overall_score) >= 70
+                  ? 'text-green-400'
+                  : Number(run.report.overall_score) >= 40
+                    ? 'text-yellow-400'
+                    : 'text-red-400',
+              )}
+            >
+              {Math.round(Number(run.report.overall_score))}
             </span>
           )}
           <RunStatusBadge status={run.status} />
@@ -231,15 +238,24 @@ export default function DashboardPage() {
   const sparklineData = useMemo(() => {
     if (!runList?.runs) return [];
     return runList.runs
-      .filter((r) => r.status === 'completed' && r.report)
+      .filter((r) => r.status === 'completed' && r.report != null)
       .reverse()
-      .map((r, i) => ({ run: i + 1, score: r.report!.overall_score }));
+      .map((r, i) => {
+        const raw = r.report?.overall_score;
+        const n = typeof raw === 'number' ? raw : Number(raw);
+        const score = Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : 0;
+        return { run: i + 1, score };
+      });
   }, [runList]);
 
   const previousScore = sparklineData.length >= 2
     ? sparklineData[sparklineData.length - 2].score
     : null;
-  const currentScore = report?.overall_score ?? 0;
+  const currentScore = useMemo(() => {
+    const v = report?.overall_score;
+    const n = typeof v === 'number' ? v : Number(v);
+    return Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : 0;
+  }, [report]);
   const scoreDiff = previousScore !== null ? currentScore - previousScore : null;
 
   const totalFindings = useMemo(() => {
@@ -402,7 +418,7 @@ export default function DashboardPage() {
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
         <div className="lg:col-span-2">
-          <Card className="flex flex-col items-center justify-center rounded-3xl border-border/60 bg-background/60 p-6 backdrop-blur-sm">
+          <Card className="flex flex-col items-center justify-center rounded-3xl border-border/60 bg-card p-6">
             <p className="mb-4 text-xs font-medium uppercase tracking-wider text-muted-foreground">
               Latest safety score
             </p>
@@ -421,7 +437,7 @@ export default function DashboardPage() {
         </div>
 
         <div className="lg:col-span-3">
-          <Card className="flex h-full min-h-[280px] flex-col rounded-3xl border-border/60 bg-background/60 p-6 backdrop-blur-sm">
+          <Card className="flex h-full min-h-[280px] flex-col rounded-3xl border-border/60 bg-card p-6">
             <div className="mb-4 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <TrendingUp className="h-4 w-4 text-primary" />
@@ -472,7 +488,7 @@ export default function DashboardPage() {
               No completed analysis yet. When a run finishes, dimension scores and findings will appear here.
             </p>
           ) : (
-            DASHBOARD_DIMENSIONS.map((dimension, i) => {
+            DASHBOARD_DIMENSIONS.map((dimension) => {
               const result = findingsRec[dimension];
               return (
                 <DimensionCard
@@ -482,7 +498,6 @@ export default function DashboardPage() {
                   worstSeverity={result?.worst_severity ?? 'info'}
                   findingCount={result?.finding_count ?? 0}
                   runId={latestCompletedRun.id}
-                  index={i}
                 />
               );
             })
@@ -500,7 +515,7 @@ export default function DashboardPage() {
             View all runs
           </Link>
         </div>
-        <Card className="divide-y divide-border/60 overflow-hidden rounded-3xl border-border/60 bg-background/40 p-1 backdrop-blur-sm">
+        <Card className="divide-y divide-border/60 overflow-hidden rounded-3xl border-border/60 bg-card p-1">
           {isLoading ? (
             Array.from({ length: 3 }).map((_, i) => (
               <div key={i} className="flex items-center gap-4 px-4 py-3">
@@ -520,7 +535,7 @@ export default function DashboardPage() {
         </Card>
       </section>
 
-      <div className="flex flex-col items-stretch justify-between gap-4 rounded-3xl border border-dashed border-border/60 bg-background/30 px-6 py-5 backdrop-blur-sm sm:flex-row sm:items-center">
+      <div className="flex flex-col items-stretch justify-between gap-4 rounded-3xl border border-dashed border-border/60 bg-card/50 px-6 py-5 sm:flex-row sm:items-center">
         <div>
           <p className="text-sm font-semibold text-foreground">Kick off another safety scan</p>
           <p className="mt-0.5 text-xs text-muted-foreground">

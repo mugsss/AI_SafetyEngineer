@@ -1,6 +1,5 @@
 'use client';
 
-import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
 interface ScoreBarProps {
@@ -41,11 +40,9 @@ export function ScoreBar({
           getScoreTrackColor(score),
         )}
       >
-        <motion.div
+        <div
           className={cn('absolute inset-y-0 left-0 rounded-full', getScoreColor(score))}
-          initial={{ width: 0 }}
-          animate={{ width: `${pct}%` }}
-          transition={{ duration: 0.8, ease: 'easeOut' }}
+          style={{ width: `${pct}%` }}
         />
       </div>
       {showLabel && (

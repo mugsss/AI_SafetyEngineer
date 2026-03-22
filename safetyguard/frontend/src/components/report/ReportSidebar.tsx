@@ -15,7 +15,6 @@ import {
   Wrench,
   type LucideIcon,
 } from 'lucide-react';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import type { SafetyReport } from '@/types/report';
 import type { Dimension } from '@/types/report';
@@ -59,14 +58,14 @@ export function ReportSidebar({
   report,
 }: ReportSidebarProps) {
   return (
-    <aside className="flex w-56 shrink-0 flex-col border-r border-border bg-card/50">
+    <aside className="flex min-h-0 w-56 shrink-0 flex-col border-r border-border bg-card/50">
       <div className="border-b border-border px-4 py-3">
         <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           Report Sections
         </h2>
       </div>
-      <ScrollArea className="flex-1">
-        <nav className="flex flex-col gap-0.5 p-2">
+      <nav className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto p-2">
+        <div className="flex flex-col gap-0.5">
           {tabs.map((tab) => {
             const isActive = activeTab === tab.id;
             const Icon = tab.icon;
@@ -96,25 +95,25 @@ export function ReportSidebar({
                     {findingCount}
                   </span>
                 )}
-                {score != null && (
+                {score != null && Number.isFinite(Number(score)) && (
                   <span
                     className={cn(
                       'text-xs font-semibold tabular-nums',
-                      score >= 70
+                      Number(score) >= 70
                         ? 'text-green-400'
-                        : score >= 40
+                        : Number(score) >= 40
                           ? 'text-yellow-400'
                           : 'text-red-400',
                     )}
                   >
-                    {Math.round(score)}
+                    {Math.round(Number(score))}
                   </span>
                 )}
               </button>
             );
           })}
-        </nav>
-      </ScrollArea>
+        </div>
+      </nav>
     </aside>
   );
 }
