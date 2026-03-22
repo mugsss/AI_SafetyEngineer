@@ -59,7 +59,8 @@ class Settings(BaseSettings):
     UPLOAD_DIR: str = "./uploads"
     MAX_UPLOAD_SIZE_MB: int = 200
 
-    # Git clone root: empty => ~/.cache/safetyguard_repos (override if needed).
+    # Git clone root: empty => backend/.data/clones (workspace-local; avoids macOS/Cursor EPERM on ~/.cache).
+    # Set CLONE_WORK_DIR to an absolute path on servers (e.g. /var/safetyguard/clones).
     CLONE_WORK_DIR: str = ""
 
     REPO_EXPLORER_MAX_TURNS: int = 8

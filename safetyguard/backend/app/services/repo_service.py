@@ -3,8 +3,21 @@ import shutil
 import subprocess
 import uuid
 import zipfile
+from pathlib import Path
 
 from app.config import settings
+
+# app/services/repo_service.py -> services -> app -> backend/
+_BACKEND_DIR = Path(__file__).resolve().parent.parent.parent
+
+
+def _default_clone_base() -> str:
+    """Inside the repo checkout (workspace): allowed when the API runs under Cursor/macOS sandboxes.
+
+    ~/.cache, /tmp, and sometimes Desktop paths get EPERM for the `git` subprocess
+    ("could not create work tree dir" or "could not write .git/config").
+    """
+    return str(_BACKEND_DIR / ".data" / "clones")
 
 
 def _repos_base() -> str:
@@ -12,8 +25,7 @@ def _repos_base() -> str:
     raw = (getattr(settings, "CLONE_WORK_DIR", None) or "").strip()
     if raw:
         return os.path.abspath(os.path.expanduser(raw))
-    # ~/.cache/safetyguard_repos — avoids macOS EPERM on /tmp and Desktop/iCloud paths
-    return os.path.join(os.path.expanduser("~"), ".cache", "safetyguard_repos")
+    return _default_clone_base()
 
 
 def _make_work_dir() -> str:
