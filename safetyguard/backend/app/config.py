@@ -59,6 +59,10 @@ class Settings(BaseSettings):
     UPLOAD_DIR: str = "./uploads"
     MAX_UPLOAD_SIZE_MB: int = 200
 
+    # Git clone target: leave empty to use tempfile.gettempdir()/safetyguard_repos (recommended on macOS
+    # when the project lives under Desktop/iCloud or git gets EPERM writing .git/config under backend/repos).
+    CLONE_WORK_DIR: str = ""
+
     REPO_EXPLORER_MAX_TURNS: int = 8
     AGENT_MAX_TOOL_ROUNDS: int = 3
 

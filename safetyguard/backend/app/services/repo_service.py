@@ -1,5 +1,6 @@
 import os
 import shutil
+import tempfile
 import uuid
 import zipfile
 
@@ -7,12 +8,19 @@ from git import Repo
 
 from app.config import settings
 
-REPOS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "repos")
+
+def _repos_base() -> str:
+    """Writable directory for Git clones and extracted uploads."""
+    raw = (getattr(settings, "CLONE_WORK_DIR", None) or "").strip()
+    if raw:
+        return os.path.abspath(os.path.expanduser(raw))
+    return os.path.join(tempfile.gettempdir(), "safetyguard_repos")
 
 
 def _make_work_dir() -> str:
-    os.makedirs(REPOS_DIR, exist_ok=True)
-    path = os.path.join(REPOS_DIR, f"sg_{uuid.uuid4().hex[:12]}")
+    base = _repos_base()
+    os.makedirs(base, exist_ok=True)
+    path = os.path.join(base, f"sg_{uuid.uuid4().hex[:12]}")
     os.makedirs(path)
     return path
 

@@ -4,3 +4,6 @@
 # Code graph RAG (Chroma per-run)
 /safetyguard/backend/code_index/
 /safetyguard/backend/vendor/
+
+# Legacy local git clones (default is now under system temp)
+/safetyguard/backend/repos/
