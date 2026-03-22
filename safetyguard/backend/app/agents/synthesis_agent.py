@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from app.agents.state import SafetyGuardState
-from app.utils.scoring import compute_dimension_scores, compute_overall_score
+from app.utils.scoring import augment_risk_findings, compute_dimension_scores, compute_overall_score
 
 _SEVERITY_ORDER = ("critical", "high", "medium", "low", "info")
 
@@ -56,7 +56,11 @@ def _generate_summary(dim_name: str, data: dict) -> str:
             titles.append(str(f["title"]))
 
     sev_breakdown = ", ".join(
-        f"{c} {s}" for s, c in sorted(sev_counts.items(), key=lambda x: _SEVERITY_ORDER.index(x[0]) if x[0] in _SEVERITY_ORDER else 99)
+        f"{c} {s}"
+        for s, c in sorted(
+            sev_counts.items(),
+            key=lambda x: _SEVERITY_ORDER.index(x[0]) if x[0] in _SEVERITY_ORDER else 99,
+        )
         if c > 0
     )
 
@@ -89,7 +93,7 @@ def _generate_recommendations(all_findings: dict) -> list[dict]:
     all_items.sort(key=lambda x: x[0])
 
     seen_fixes: set[str] = set()
-    for rank, dim_name, finding in all_items[:15]:
+    for _rank, dim_name, finding in all_items[:15]:
         fix = finding.get("suggested_fix", "")
         title = finding.get("title", "")
         if not fix or fix.lower() in seen_fixes:
@@ -119,15 +123,27 @@ def _generate_executive_summary(
     all_findings: dict,
     recommendations: list[dict],
 ) -> str:
-    weakest = sorted(dim_scores.items(), key=lambda x: x[1])[:3]
-    weakest_txt = ", ".join(
-        f"{_DIMENSION_LABELS.get(d, d)} ({s:.0f})" for d, s in weakest
-    ) if weakest else "n/a"
+    """Narrative for leadership: merges weighted scoring context + P0/P1 actions."""
+    # Weakest dimensions: only those that actually produced findings (feature/testing)
+    scored_dims = {
+        dim: s
+        for dim, s in dim_scores.items()
+        if (all_findings.get(dim, {}).get("finding_count", 0) or 0) > 0
+    }
+    weakest = sorted(scored_dims.items(), key=lambda x: x[1])[:3]
+    weakest_txt = (
+        ", ".join(f"{_DIMENSION_LABELS.get(d, d)} ({s:.0f})" for d, s in weakest)
+        if weakest
+        else "no scored findings yet"
+    )
 
+    # Strongest among all analyzed dimensions (merge-n8n behavior)
     strongest = sorted(dim_scores.items(), key=lambda x: x[1], reverse=True)[:2]
-    strongest_txt = ", ".join(
-        f"{_DIMENSION_LABELS.get(d, d)} ({s:.0f})" for d, s in strongest
-    ) if strongest else "n/a"
+    strongest_txt = (
+        ", ".join(f"{_DIMENSION_LABELS.get(d, d)} ({s:.0f})" for d, s in strongest)
+        if strongest
+        else "n/a"
+    )
 
     crit = high = med = 0
     total_findings = 0
@@ -146,6 +162,9 @@ def _generate_executive_summary(
             elif sev == "medium":
                 med += 1
 
+    agents_run = len(dim_scores)
+    agents_with_findings = len(scored_dims)
+
     posture = "strong"
     if score < 50:
         posture = "critical — requires immediate remediation"
@@ -161,12 +180,18 @@ def _generate_executive_summary(
 
     lines = [
         f"Overall SafetyGuard score: {score:.1f}/100 ({posture}).",
-        f"Analyzed across 10 safety dimensions with {total_findings} total finding(s).",
+        f"Analyzed across {agents_run} safety dimension(s) with {total_findings} total finding(s).",
         f"Severity breakdown: {crit} critical, {high} high, {med} medium.",
         "",
-        f"Weakest areas: {weakest_txt}.",
+        f"Weakest areas (among dimensions with findings): {weakest_txt}.",
         f"Strongest areas: {strongest_txt}.",
     ]
+
+    if agents_run < 10:
+        lines.insert(
+            2,
+            f"Coverage: {agents_run} agent(s) run, {agents_with_findings} dimension(s) with findings.",
+        )
 
     if p0_actions:
         lines.append("")
@@ -221,7 +246,10 @@ async def synthesis_agent(state: SafetyGuardState) -> dict:
         ("redteam", "redteam_findings"),
     ]
 
+    enabled = state.get("enabled_agents", {})
     for dim_name, findings_key in dimension_keys:
+        if not enabled.get(dim_name, False):
+            continue
         findings = state.get(findings_key, [])
         if not isinstance(findings, list):
             findings = []
@@ -232,15 +260,20 @@ async def synthesis_agent(state: SafetyGuardState) -> dict:
         }
 
     dimension_scores = compute_dimension_scores(all_findings)
-    overall_score = compute_overall_score(dimension_scores)
+    overall_score = compute_overall_score(dimension_scores, all_findings)
 
     for dim_name, data in all_findings.items():
         data["score"] = dimension_scores.get(dim_name, 100)
         data["summary"] = _generate_summary(dim_name, data)
 
+    augment_risk_findings(all_findings, dimension_scores)
+
     recommendations = _generate_recommendations(all_findings)
     executive_summary = _generate_executive_summary(
-        overall_score, dimension_scores, all_findings, recommendations,
+        overall_score,
+        dimension_scores,
+        all_findings,
+        recommendations,
     )
 
     dep_graph = state.get("dependency_graph", _default_dependency_graph())

@@ -18,7 +18,7 @@ def execute_analysis(run_id: str) -> dict:
     from app.models.report import SafetyReport
     from app.services.repo_service import clone_repo, extract_upload, cleanup_repo
     from app.utils.mock_data import get_mock_findings, get_mock_dependency_graph
-    from app.utils.scoring import compute_dimension_scores, compute_overall_score
+    from app.utils.scoring import augment_risk_findings, compute_dimension_scores, compute_overall_score
     from app.utils.severity import canonical_severity, severity_rank
 
     db = SessionLocal()
@@ -40,30 +40,32 @@ def execute_analysis(run_id: str) -> dict:
 
             all_findings = {}
             for dim_name, findings in mock_findings.items():
-                enabled = run.enabled_agents.get(dim_name, False)
-                dim_findings = findings if enabled else []
+                enabled = (run.enabled_agents or {}).get(dim_name, False)
+                if not enabled:
+                    continue
                 worst_raw = "info"
-                for f in dim_findings:
+                for f in findings:
                     raw = str(f.get("severity", "info"))
                     if severity_rank(raw) < severity_rank(worst_raw):
                         worst_raw = raw
                 all_findings[dim_name] = {
-                    "findings": dim_findings,
-                    "finding_count": len(dim_findings),
+                    "findings": findings,
+                    "finding_count": len(findings),
                     "worst_severity": canonical_severity(worst_raw),
-                    "score": 100,
                     "summary": (
-                        f"{len(dim_findings)} {dim_name} issues found."
-                        if dim_findings
+                        f"{len(findings)} {dim_name} issues found."
+                        if findings
                         else f"No {dim_name} issues found."
                     ),
                 }
 
             dimension_scores = compute_dimension_scores(all_findings)
-            overall_score = compute_overall_score(dimension_scores)
+            overall_score = compute_overall_score(dimension_scores, all_findings)
 
             for dim_name in all_findings:
                 all_findings[dim_name]["score"] = dimension_scores.get(dim_name, 100)
+
+            augment_risk_findings(all_findings, dimension_scores)
 
             executive_summary = (
                 f"SafetyGuard analysis complete. Overall safety score: {overall_score}/100. "

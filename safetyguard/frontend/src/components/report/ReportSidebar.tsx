@@ -33,11 +33,11 @@ interface TabDefinition {
 
 const tabs: TabDefinition[] = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
-  { id: 'risk', label: 'Risk', icon: AlertTriangle, dimension: 'risk' },
+  { id: 'risk', label: 'Risk Severity', icon: AlertTriangle, dimension: 'risk' },
   { id: 'security', label: 'Security', icon: Shield, dimension: 'security' },
   { id: 'hallucinations', label: 'Hallucinations', icon: Brain, dimension: 'hallucinations' },
-  { id: 'failures', label: 'Failures', icon: XCircle, dimension: 'failures' },
-  { id: 'cost', label: 'Cost', icon: DollarSign, dimension: 'cost' },
+  { id: 'failures', label: 'Failure Resilience', icon: XCircle, dimension: 'failures' },
+  { id: 'cost', label: 'Cost Efficiency', icon: DollarSign, dimension: 'cost' },
   { id: 'privacy', label: 'Privacy', icon: Lock, dimension: 'privacy' },
   { id: 'observability', label: 'Observability', icon: Eye, dimension: 'observability' },
   { id: 'performance', label: 'Performance', icon: Gauge, dimension: 'performance' },
@@ -70,12 +70,19 @@ export function ReportSidebar({
             const isActive = activeTab === tab.id;
             const Icon = tab.icon;
             const dimensionResult =
-              tab.dimension && report?.findings?.[tab.dimension];
-            const findingCount = dimensionResult
-              ? dimensionResult.finding_count
+              tab.dimension ? report?.findings?.[tab.dimension] : undefined;
+            const findingCount = dimensionResult?.finding_count;
+            const rawScore = tab.dimension
+              ? report?.dimension_scores?.[tab.dimension]
               : undefined;
-            const score =
-              tab.dimension && report?.dimension_scores?.[tab.dimension];
+            // Risk shows risk_severity (inverted); all other dims show the safety score
+            const isRisk = tab.dimension === 'risk';
+            const riskSeverity = dimensionResult?.risk_severity;
+            const score = isRisk && riskSeverity != null ? riskSeverity : rawScore;
+            const wasAnalyzed =
+              tab.dimension != null &&
+              report != null &&
+              tab.dimension in (report.dimension_scores ?? {});
 
             return (
               <button
@@ -95,19 +102,31 @@ export function ReportSidebar({
                     {findingCount}
                   </span>
                 )}
-                {score != null && Number.isFinite(Number(score)) && (
-                  <span
-                    className={cn(
-                      'text-xs font-semibold tabular-nums',
-                      Number(score) >= 70
-                        ? 'text-green-400'
-                        : Number(score) >= 40
-                          ? 'text-yellow-400'
-                          : 'text-red-400',
-                    )}
-                  >
-                    {Math.round(Number(score))}
-                  </span>
+                {tab.dimension && report && (
+                  wasAnalyzed && score != null && (isRisk || (findingCount ?? 0) > 0) ? (
+                    <span
+                      className={cn(
+                        'text-xs font-semibold tabular-nums',
+                        isRisk
+                          ? score <= 20
+                            ? 'text-green-400'
+                            : score <= 45
+                              ? 'text-yellow-400'
+                              : score <= 70
+                                ? 'text-orange-400'
+                                : 'text-red-400'
+                          : score >= 70
+                            ? 'text-green-400'
+                            : score >= 40
+                              ? 'text-yellow-400'
+                              : 'text-red-400',
+                      )}
+                    >
+                      {Math.round(score)}
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-muted-foreground/40">—</span>
+                  )
                 )}
               </button>
             );
