@@ -31,11 +31,11 @@ import { SafetyScoreGauge } from '@/components/dashboard/SafetyScoreGauge';
 import { ScoreSparkline } from '@/components/dashboard/ScoreSparkline';
 import { DimensionCard } from '@/components/dashboard/DimensionCard';
 import { RunStatusBadge } from '@/components/shared/RunStatusBadge';
-import type { Dimension, DimensionResult } from '@/types/report';
+import type { BuiltinDimension, DimensionResult } from '@/types/report';
 import type { Run } from '@/types/run';
 import { cn } from '@/lib/utils';
 
-const DASHBOARD_DIMENSIONS: Exclude<Dimension, 'redteam'>[] = [
+const DASHBOARD_DIMENSIONS: Exclude<BuiltinDimension, 'redteam'>[] = [
   'security', 'risk', 'hallucinations', 'privacy',
   'failures', 'cost', 'performance', 'observability', 'resources',
 ];
@@ -50,8 +50,8 @@ function safeFindingsRecord(
 }
 
 function safeDimensionScores(
-  report: { dimension_scores?: Partial<Record<Dimension, number>> | null } | undefined,
-): Partial<Record<Dimension, number>> {
+  report: { dimension_scores?: Record<string, number> | null } | undefined,
+): Record<string, number> {
   const s = report?.dimension_scores;
   if (!s || typeof s !== 'object') return {};
   return s;

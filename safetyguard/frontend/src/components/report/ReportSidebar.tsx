@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo } from 'react';
 import {
   LayoutDashboard,
   AlertTriangle,
@@ -13,25 +14,23 @@ import {
   Server,
   Swords,
   Wrench,
+  Bot,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { isBuiltinDimension } from '@/types/report';
 import type { SafetyReport } from '@/types/report';
-import type { Dimension } from '@/types/report';
 
-export type ReportTab =
-  | 'overview'
-  | Dimension
-  | 'fixes';
+export type ReportTab = string;
 
 interface TabDefinition {
-  id: ReportTab;
+  id: string;
   label: string;
   icon: LucideIcon;
-  dimension?: Dimension;
+  dimension?: string;
 }
 
-const tabs: TabDefinition[] = [
+const BUILTIN_TABS: TabDefinition[] = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
   { id: 'risk', label: 'Risk Severity', icon: AlertTriangle, dimension: 'risk' },
   { id: 'security', label: 'Security', icon: Shield, dimension: 'security' },
@@ -43,8 +42,17 @@ const tabs: TabDefinition[] = [
   { id: 'performance', label: 'Performance', icon: Gauge, dimension: 'performance' },
   { id: 'resources', label: 'Resources', icon: Server, dimension: 'resources' },
   { id: 'redteam', label: 'Red Team', icon: Swords, dimension: 'redteam' },
-  { id: 'fixes', label: 'Fixes', icon: Wrench },
 ];
+
+const FIXES_TAB: TabDefinition = { id: 'fixes', label: 'Fixes', icon: Wrench };
+
+function customDimLabel(key: string): string {
+  const slug = key.startsWith('custom_') ? key.slice(7) : key;
+  return slug
+    .split('_')
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+}
 
 interface ReportSidebarProps {
   activeTab: ReportTab;
@@ -57,6 +65,28 @@ export function ReportSidebar({
   onTabChange,
   report,
 }: ReportSidebarProps) {
+  const tabs = useMemo(() => {
+    const customTabs: TabDefinition[] = [];
+    if (report) {
+      const allKeys = new Set([
+        ...Object.keys(report.findings ?? {}),
+        ...Object.keys(report.dimension_scores ?? {}),
+      ]);
+      for (const key of allKeys) {
+        if (!isBuiltinDimension(key) && key.startsWith('custom_')) {
+          customTabs.push({
+            id: key,
+            label: customDimLabel(key),
+            icon: Bot,
+            dimension: key,
+          });
+        }
+      }
+      customTabs.sort((a, b) => a.label.localeCompare(b.label));
+    }
+    return [...BUILTIN_TABS, ...customTabs, FIXES_TAB];
+  }, [report]);
+
   return (
     <aside className="flex min-h-0 w-56 shrink-0 flex-col border-r border-border bg-card/50">
       <div className="border-b border-border px-4 py-3">
@@ -75,7 +105,6 @@ export function ReportSidebar({
             const rawScore = tab.dimension
               ? report?.dimension_scores?.[tab.dimension]
               : undefined;
-            // Risk shows risk_severity (inverted); all other dims show the safety score
             const isRisk = tab.dimension === 'risk';
             const riskSeverity = dimensionResult?.risk_severity;
             const score = isRisk && riskSeverity != null ? riskSeverity : rawScore;
@@ -96,7 +125,7 @@ export function ReportSidebar({
                 )}
               >
                 <Icon className="h-4 w-4 shrink-0" />
-                <span className="flex-1 text-left">{tab.label}</span>
+                <span className="flex-1 truncate text-left">{tab.label}</span>
                 {findingCount != null && findingCount > 0 && (
                   <span className="rounded-full bg-secondary px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-muted-foreground">
                     {findingCount}
@@ -137,5 +166,5 @@ export function ReportSidebar({
   );
 }
 
-export { tabs };
+export { BUILTIN_TABS, customDimLabel };
 export type { TabDefinition };

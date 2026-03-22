@@ -15,10 +15,10 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import { SeverityBadge } from '@/components/shared/SeverityBadge';
 import { cn } from '@/lib/utils';
-import type { Dimension, Severity } from '@/types/report';
+import type { BuiltinDimension, Severity } from '@/types/report';
 
 const dimensionMeta: Record<
-  Exclude<Dimension, 'redteam'>,
+  Exclude<BuiltinDimension, 'redteam'>,
   { icon: LucideIcon; label: string; color: string; bg: string }
 > = {
   risk:           { icon: AlertTriangle, label: 'Risk Severity',  color: 'text-orange-400', bg: 'bg-orange-500/10' },
@@ -45,7 +45,7 @@ function getScoreTextColor(score: number): string {
 }
 
 interface DimensionCardProps {
-  dimension: Exclude<Dimension, 'redteam'>;
+  dimension: Exclude<BuiltinDimension, 'redteam'>;
   score: number;
   worstSeverity: Severity;
   findingCount: number;

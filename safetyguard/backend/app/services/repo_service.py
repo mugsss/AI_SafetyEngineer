@@ -7,7 +7,10 @@ from git import Repo
 
 from app.config import settings
 
-REPOS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "repos")
+import tempfile as _tempfile
+
+_BACKEND_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+REPOS_DIR = os.path.join(_tempfile.gettempdir(), "safetyguard_repos")
 
 
 def _make_work_dir() -> str:

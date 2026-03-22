@@ -24,11 +24,12 @@ import { Separator } from '@/components/ui/separator';
 import { RunStatusBadge } from '@/components/shared/RunStatusBadge';
 import { SeverityBadge } from '@/components/shared/SeverityBadge';
 import { ScoreBar } from '@/components/shared/ScoreBar';
-import { ReportSidebar, type ReportTab } from '@/components/report/ReportSidebar';
+import { ReportSidebar, customDimLabel, type ReportTab } from '@/components/report/ReportSidebar';
 import { DimensionTab } from '@/components/report/DimensionTab';
 import { FindingCard } from '@/components/report/FindingCard';
 import { cn } from '@/lib/utils';
-import type { Dimension, Finding, Severity, SafetyReport } from '@/types/report';
+import { BUILTIN_DIMENSIONS } from '@/types/report';
+import type { Finding, Severity, SafetyReport } from '@/types/report';
 
 const SEVERITY_ORDER: Record<Severity, number> = {
   critical: 0,
@@ -38,7 +39,7 @@ const SEVERITY_ORDER: Record<Severity, number> = {
   info: 4,
 };
 
-const dimensionLabels: Record<string, string> = {
+const BUILTIN_LABELS: Record<string, string> = {
   risk: 'Risk Severity',
   security: 'Security',
   hallucinations: 'Hallucinations',
@@ -51,22 +52,21 @@ const dimensionLabels: Record<string, string> = {
   redteam: 'Red Team',
 };
 
-function isValidTab(value: string): value is ReportTab {
-  const valid = new Set<string>([
-    'overview',
-    'risk',
-    'security',
-    'hallucinations',
-    'failures',
-    'cost',
-    'privacy',
-    'observability',
-    'performance',
-    'resources',
-    'redteam',
-    'fixes',
-  ]);
-  return valid.has(value);
+function dimensionLabel(key: string): string {
+  return BUILTIN_LABELS[key] ?? customDimLabel(key);
+}
+
+const STATIC_TABS = new Set<string>([
+  'overview', 'fixes',
+  ...BUILTIN_DIMENSIONS,
+]);
+
+function isValidTab(value: string, report?: SafetyReport | null): boolean {
+  if (STATIC_TABS.has(value)) return true;
+  if (report && (value in (report.findings ?? {}) || value in (report.dimension_scores ?? {}))) {
+    return true;
+  }
+  return false;
 }
 
 // ---------------------------------------------------------------------------
@@ -92,7 +92,7 @@ function OverviewTab({
 
   const topIssues = allFindings.slice(0, 10);
 
-  const dimEntries = Object.entries(report.dimension_scores) as [Dimension, number][];
+  const dimEntries = Object.entries(report.dimension_scores);
   const dimCount = dimEntries.length;
 
   return (
@@ -110,7 +110,7 @@ function OverviewTab({
             const riskSeverity = dimResult?.risk_severity;
             const severityLabel = dimResult?.severity_label;
             const displayValue = isRisk && riskSeverity != null ? riskSeverity : score;
-            const displayLabel = dimensionLabels[dim] ?? dim;
+            const displayLabel = dimensionLabel(dim);
             const noFindings = (dimResult?.finding_count ?? 0) === 0;
 
             // Risk: high value = bad; others: high value = good
@@ -203,8 +203,7 @@ function OverviewTab({
                     >
                       <td className="px-4 py-2.5">
                         <Badge variant="secondary" className="text-xs">
-                          {dimensionLabels[finding.dimension] ??
-                            finding.dimension}
+                          {dimensionLabel(finding.dimension)}
                         </Badge>
                       </td>
                       <td className="px-4 py-2.5">
@@ -399,7 +398,7 @@ function FixesTab({ report }: { report: SafetyReport }) {
                     {fix.title}
                   </span>
                   <Badge variant="secondary" className="text-xs">
-                    {dimensionLabels[fix.dimension] ?? fix.dimension}
+                    {dimensionLabel(fix.dimension)}
                   </Badge>
                   <SeverityBadge severity={fix.severity} />
                 </div>
@@ -494,10 +493,7 @@ export default function ReportPage() {
   const runId = params.runId;
 
   const initialTab = searchParams.get('tab');
-  const [activeTab, setActiveTab] = useState<ReportTab>(() => {
-    if (initialTab && isValidTab(initialTab)) return initialTab;
-    return 'overview';
-  });
+  const [activeTab, setActiveTab] = useState<ReportTab>('overview');
 
   const {
     data: run,
@@ -522,10 +518,10 @@ export default function ReportPage() {
   } = useReport(isCompleted ? runId : undefined);
 
   useEffect(() => {
-    if (initialTab && isValidTab(initialTab)) {
+    if (initialTab && isValidTab(initialTab, report)) {
       setActiveTab(initialTab);
     }
-  }, [initialTab]);
+  }, [initialTab, report]);
 
   if (runLoading) return <LoadingState />;
 
@@ -713,12 +709,12 @@ function TabContent({
     return <FixesTab report={report} />;
   }
 
-  const dimensionData = report.findings[activeTab as Dimension];
+  const dimensionData = report.findings[activeTab];
   if (!dimensionData) {
     return (
       <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-16 text-center">
         <p className="text-sm font-medium text-muted-foreground">
-          {dimensionLabels[activeTab] ?? activeTab} was not included in this run.
+          {dimensionLabel(activeTab)} was not included in this run.
         </p>
         <p className="mt-1 text-xs text-muted-foreground/60">
           Enable this agent when creating a new analysis to see findings here.
@@ -729,7 +725,7 @@ function TabContent({
 
   return (
     <DimensionTab
-      name={dimensionLabels[activeTab] ?? activeTab}
+      name={dimensionLabel(activeTab)}
       data={dimensionData}
     />
   );

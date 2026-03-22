@@ -5,6 +5,7 @@ import { ChevronDown, FileCode, ExternalLink, Wrench } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { SeverityBadge } from '@/components/shared/SeverityBadge';
+import { customDimLabel } from '@/components/report/ReportSidebar';
 import { cn } from '@/lib/utils';
 import type { Finding } from '@/types/report';
 
@@ -13,7 +14,7 @@ interface FindingCardProps {
   className?: string;
 }
 
-const dimensionLabels: Record<string, string> = {
+const BUILTIN_LABELS: Record<string, string> = {
   risk: 'Risk Severity',
   security: 'Security',
   hallucinations: 'Hallucinations',
@@ -25,6 +26,10 @@ const dimensionLabels: Record<string, string> = {
   resources: 'Resources',
   redteam: 'Red Team',
 };
+
+function dimLabel(key: string): string {
+  return BUILTIN_LABELS[key] ?? customDimLabel(key);
+}
 
 export function FindingCard({ finding, className }: FindingCardProps) {
   const [expanded, setExpanded] = useState(false);
@@ -45,7 +50,7 @@ export function FindingCard({ finding, className }: FindingCardProps) {
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <Badge variant="secondary" className="text-xs">
-            {dimensionLabels[finding.dimension] ?? finding.dimension}
+            {dimLabel(finding.dimension)}
           </Badge>
           <SeverityBadge severity={finding.severity} />
           <ChevronDown

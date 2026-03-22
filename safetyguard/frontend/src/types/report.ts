@@ -1,12 +1,27 @@
 export type Severity = 'critical' | 'high' | 'medium' | 'low' | 'info';
-export type Dimension =
+
+/** The 10 built-in safety dimensions. */
+export type BuiltinDimension =
   | 'risk' | 'security' | 'hallucinations' | 'failures'
   | 'cost' | 'privacy' | 'observability' | 'performance'
   | 'resources' | 'redteam';
 
+/** Any dimension key — built-in or custom (`custom_<slug>`). */
+export type Dimension = BuiltinDimension | (string & {});
+
+export const BUILTIN_DIMENSIONS: readonly BuiltinDimension[] = [
+  'risk', 'security', 'hallucinations', 'failures',
+  'cost', 'privacy', 'observability', 'performance',
+  'resources', 'redteam',
+] as const;
+
+export function isBuiltinDimension(key: string): key is BuiltinDimension {
+  return (BUILTIN_DIMENSIONS as readonly string[]).includes(key);
+}
+
 export interface Finding {
   id: string;
-  dimension: Dimension;
+  dimension: string;
   title: string;
   severity: Severity;
   likelihood?: number;
@@ -38,8 +53,8 @@ export interface SafetyReport {
   run_id: string;
   overall_score: number;
   executive_summary: string;
-  dimension_scores: Partial<Record<Dimension, number>>;
-  findings: Partial<Record<Dimension, DimensionResult>>;
+  dimension_scores: Record<string, number>;
+  findings: Record<string, DimensionResult>;
   dependency_graph: DependencyGraph;
   created_at: string;
 }
