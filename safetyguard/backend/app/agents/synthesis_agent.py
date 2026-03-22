@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from app.agents.state import SafetyGuardState
-from app.utils.scoring import compute_dimension_scores, compute_overall_score
+from app.utils.scoring import augment_risk_findings, compute_dimension_scores, compute_overall_score
 
 _SEVERITY_ORDER = ("critical", "high", "medium", "low", "info")
 
@@ -121,7 +121,10 @@ async def synthesis_agent(state: SafetyGuardState) -> dict:
         ("redteam", "redteam_findings"),
     ]
 
+    enabled = state.get("enabled_agents", {})
     for dim_name, findings_key in dimension_keys:
+        if not enabled.get(dim_name, False):
+            continue
         findings = state.get(findings_key, [])
         if not isinstance(findings, list):
             findings = []
@@ -137,6 +140,8 @@ async def synthesis_agent(state: SafetyGuardState) -> dict:
     for dim_name, data in all_findings.items():
         data["score"] = dimension_scores.get(dim_name, 100)
         data["summary"] = _generate_summary(dim_name, data)
+
+    augment_risk_findings(all_findings, dimension_scores)
 
     executive_summary = _generate_executive_summary(overall_score, dimension_scores, all_findings)
 

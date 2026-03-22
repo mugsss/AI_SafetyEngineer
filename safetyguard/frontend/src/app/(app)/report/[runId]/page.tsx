@@ -24,7 +24,6 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { RunStatusBadge } from '@/components/shared/RunStatusBadge';
 import { SeverityBadge } from '@/components/shared/SeverityBadge';
 import { ScoreBar } from '@/components/shared/ScoreBar';
-import { SafetyScoreGauge } from '@/components/dashboard/SafetyScoreGauge';
 import { ReportSidebar, type ReportTab } from '@/components/report/ReportSidebar';
 import { DimensionTab } from '@/components/report/DimensionTab';
 import { FindingCard } from '@/components/report/FindingCard';
@@ -93,44 +92,62 @@ function OverviewTab({
 
   const topIssues = allFindings.slice(0, 10);
 
+  const dimEntries = Object.entries(report.dimension_scores) as [Dimension, number][];
+  const dimCount = dimEntries.length;
+
   return (
     <div className="space-y-8">
-      <div className="flex flex-col items-center gap-2">
-        <SafetyScoreGauge score={report.overall_score} size={220} />
-        <h3 className="text-lg font-semibold text-foreground">
-          Overall Safety Score
-        </h3>
-      </div>
+      <div className={cn(
+        'grid gap-3',
+        dimCount === 1 ? 'grid-cols-1 w-48' :
+        dimCount === 2 ? 'grid-cols-2 w-72' :
+        dimCount <= 4 ? 'grid-cols-2 sm:grid-cols-4' :
+        'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5',
+      )}>
+          {dimEntries.map(([dim, score]) => {
+            const isRisk = dim === 'risk';
+            const riskSeverity = report.findings?.risk?.risk_severity;
+            const severityLabel = report.findings?.risk?.severity_label;
+            const displayValue = isRisk && riskSeverity != null ? riskSeverity : score;
+            const displayLabel = isRisk ? 'Risk Severity' : (dimensionLabels[dim] ?? dim);
+            // Risk severity: high value = bad; other dims: high value = good
+            const valueColor = isRisk
+              ? displayValue <= 20 ? 'text-green-400' : displayValue <= 45 ? 'text-yellow-400' : displayValue <= 70 ? 'text-orange-400' : 'text-red-400'
+              : score >= 70 ? 'text-green-400' : score >= 40 ? 'text-yellow-400' : 'text-red-400';
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-        {(Object.entries(report.dimension_scores) as [Dimension, number][]).map(
-          ([dim, score]) => (
-            <Card
-              key={dim}
-              className="cursor-pointer transition-colors hover:border-primary/30"
-              onClick={() => onTabChange(dim)}
-            >
-              <CardContent className="flex flex-col items-center gap-2 p-4">
-                <span
-                  className={cn(
-                    'text-2xl font-bold tabular-nums',
-                    score >= 70
-                      ? 'text-green-400'
-                      : score >= 40
-                        ? 'text-yellow-400'
-                        : 'text-red-400',
+            return (
+              <Card
+                key={dim}
+                className="cursor-pointer transition-colors hover:border-primary/30"
+                onClick={() => onTabChange(dim)}
+              >
+                <CardContent className="flex flex-col items-center gap-2 p-4">
+                  <span className={cn('text-2xl font-bold tabular-nums', valueColor)}>
+                    {Math.round(displayValue)}
+                  </span>
+                  <span className="text-center text-xs text-muted-foreground">
+                    {displayLabel}
+                  </span>
+                  {isRisk && severityLabel && (
+                    <span className={cn(
+                      'rounded-md border px-1.5 py-0.5 text-[10px] font-semibold',
+                      severityLabel === 'Low'      ? 'border-green-500/30  bg-green-500/10  text-green-400'  :
+                      severityLabel === 'Medium'   ? 'border-yellow-500/30 bg-yellow-500/10 text-yellow-400' :
+                      severityLabel === 'High'     ? 'border-orange-500/30 bg-orange-500/10 text-orange-400' :
+                                                     'border-red-500/30    bg-red-500/10    text-red-400',
+                    )}>
+                      {severityLabel}
+                    </span>
                   )}
-                >
-                  {Math.round(score)}
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  {dimensionLabels[dim] ?? dim}
-                </span>
-                <ScoreBar score={score} height="h-1" className="w-full" />
-              </CardContent>
-            </Card>
-          ),
-        )}
+                  <ScoreBar
+                    score={isRisk ? (100 - displayValue) : score}
+                    height="h-1"
+                    className="w-full"
+                  />
+                </CardContent>
+              </Card>
+            );
+          })}
       </div>
 
       {report.executive_summary && (
@@ -625,8 +642,11 @@ function TabContent({
   if (!dimensionData) {
     return (
       <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-16 text-center">
-        <p className="text-sm text-muted-foreground">
-          No data available for this dimension.
+        <p className="text-sm font-medium text-muted-foreground">
+          {dimensionLabels[activeTab] ?? activeTab} was not included in this run.
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground/60">
+          Enable this agent when creating a new analysis to see findings here.
         </p>
       </div>
     );

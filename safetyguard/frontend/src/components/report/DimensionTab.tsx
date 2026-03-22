@@ -9,6 +9,13 @@ import { FindingCard } from '@/components/report/FindingCard';
 import { cn } from '@/lib/utils';
 import type { DimensionResult, Severity } from '@/types/report';
 
+const SEVERITY_LABEL_STYLES: Record<string, string> = {
+  Low:      'bg-green-500/15  text-green-400  border-green-500/30',
+  Medium:   'bg-yellow-500/15 text-yellow-400 border-yellow-500/30',
+  High:     'bg-orange-500/15 text-orange-400 border-orange-500/30',
+  Critical: 'bg-red-500/15   text-red-400    border-red-500/30',
+};
+
 const SEVERITY_ORDER: Severity[] = ['critical', 'high', 'medium', 'low', 'info'];
 
 const severityFilterStyles: Record<Severity, { active: string; inactive: string }> = {
@@ -70,21 +77,58 @@ export function DimensionTab({ name, data, className }: DimensionTabProps) {
             <h2 className="text-2xl font-bold text-foreground">{name}</h2>
             <p className="text-sm text-muted-foreground">{data.summary}</p>
           </div>
-          <div className="flex flex-col items-end gap-1">
-            <span
-              className={cn(
-                'text-3xl font-bold tabular-nums',
-                data.score >= 70
-                  ? 'text-green-400'
-                  : data.score >= 40
-                    ? 'text-yellow-400'
-                    : 'text-red-400',
+
+          {data.risk_severity != null ? (
+            <div className="flex flex-col items-end gap-0.5">
+              <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                Risk Severity
+              </span>
+              <div className="flex items-baseline gap-1">
+                <span
+                  className={cn(
+                    'text-3xl font-bold tabular-nums',
+                    data.risk_severity <= 20
+                      ? 'text-green-400'
+                      : data.risk_severity <= 45
+                        ? 'text-yellow-400'
+                        : data.risk_severity <= 70
+                          ? 'text-orange-400'
+                          : 'text-red-400',
+                  )}
+                >
+                  {Math.round(data.risk_severity)}
+                </span>
+                <span className="text-xs text-muted-foreground">/ 100</span>
+              </div>
+              {data.severity_label && (
+                <span
+                  className={cn(
+                    'mt-1 rounded-md border px-2 py-0.5 text-[11px] font-semibold',
+                    SEVERITY_LABEL_STYLES[data.severity_label] ??
+                      'bg-secondary text-muted-foreground border-border',
+                  )}
+                >
+                  {data.severity_label}
+                </span>
               )}
-            >
-              {Math.round(data.score)}
-            </span>
-            <span className="text-xs text-muted-foreground">/ 100</span>
-          </div>
+            </div>
+          ) : (
+            <div className="flex flex-col items-end gap-1">
+              <span
+                className={cn(
+                  'text-3xl font-bold tabular-nums',
+                  data.score >= 70
+                    ? 'text-green-400'
+                    : data.score >= 40
+                      ? 'text-yellow-400'
+                      : 'text-red-400',
+                )}
+              >
+                {Math.round(data.score)}
+              </span>
+              <span className="text-xs text-muted-foreground">/ 100</span>
+            </div>
+          )}
         </div>
         <ScoreBar score={data.score} showLabel={false} height="h-2" />
       </div>

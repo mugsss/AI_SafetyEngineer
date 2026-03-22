@@ -71,12 +71,15 @@ export function ReportSidebar({
             const isActive = activeTab === tab.id;
             const Icon = tab.icon;
             const dimensionResult =
-              tab.dimension && report?.findings?.[tab.dimension];
-            const findingCount = dimensionResult
-              ? dimensionResult.finding_count
+              tab.dimension ? report?.findings?.[tab.dimension] : undefined;
+            const findingCount = dimensionResult?.finding_count;
+            const score = tab.dimension
+              ? report?.dimension_scores?.[tab.dimension]
               : undefined;
-            const score =
-              tab.dimension && report?.dimension_scores?.[tab.dimension];
+            const wasAnalyzed =
+              tab.dimension != null &&
+              report != null &&
+              tab.dimension in (report.dimension_scores ?? {});
 
             return (
               <button
@@ -96,19 +99,23 @@ export function ReportSidebar({
                     {findingCount}
                   </span>
                 )}
-                {score != null && (
-                  <span
-                    className={cn(
-                      'text-xs font-semibold tabular-nums',
-                      score >= 70
-                        ? 'text-green-400'
-                        : score >= 40
-                          ? 'text-yellow-400'
-                          : 'text-red-400',
-                    )}
-                  >
-                    {Math.round(score)}
-                  </span>
+                {tab.dimension && report && (
+                  wasAnalyzed && score != null ? (
+                    <span
+                      className={cn(
+                        'text-xs font-semibold tabular-nums',
+                        score >= 70
+                          ? 'text-green-400'
+                          : score >= 40
+                            ? 'text-yellow-400'
+                            : 'text-red-400',
+                      )}
+                    >
+                      {Math.round(score)}
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-muted-foreground/40">—</span>
+                  )
                 )}
               </button>
             );

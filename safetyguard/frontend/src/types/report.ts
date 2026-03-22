@@ -27,6 +27,10 @@ export interface DimensionResult {
   findings: Finding[];
   worst_severity: Severity;
   finding_count: number;
+  /** Risk dimension only */
+  risk_safety_score?: number;
+  risk_severity?: number;
+  severity_label?: string;
 }
 
 export interface SafetyReport {
@@ -34,8 +38,8 @@ export interface SafetyReport {
   run_id: string;
   overall_score: number;
   executive_summary: string;
-  dimension_scores: Record<Dimension, number>;
-  findings: Record<Dimension, DimensionResult>;
+  dimension_scores: Partial<Record<Dimension, number>>;
+  findings: Partial<Record<Dimension, DimensionResult>>;
   dependency_graph: DependencyGraph;
   created_at: string;
 }

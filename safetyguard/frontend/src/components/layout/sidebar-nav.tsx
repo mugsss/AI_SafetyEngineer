@@ -14,6 +14,7 @@ import {
   Shield,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 
@@ -135,7 +136,8 @@ export function AppSidebarNav({
   const pathname = usePathname();
 
   return (
-    <nav className={cn('min-h-0 flex-1 overflow-x-hidden overflow-y-auto pr-3 pb-8 pt-2', className)}>
+    <ScrollArea className={cn('min-h-0 flex-1', className)}>
+    <nav className="pr-3 pb-8 pt-2">
       <div className="space-y-6">
         <div className="space-y-1">
           <SectionLabel>Overview</SectionLabel>
@@ -170,5 +172,6 @@ export function AppSidebarNav({
         </div>
       </div>
     </nav>
+    </ScrollArea>
   );
 }

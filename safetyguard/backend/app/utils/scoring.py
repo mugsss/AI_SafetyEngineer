@@ -42,13 +42,41 @@ def compute_dimension_scores(all_findings: dict) -> dict[str, float]:
     return scores
 
 
+def _risk_severity_label(risk_severity: float) -> str:
+    if risk_severity <= 20:
+        return "Low"
+    elif risk_severity <= 45:
+        return "Medium"
+    elif risk_severity <= 70:
+        return "High"
+    return "Critical"
+
+
+def augment_risk_findings(all_findings: dict, dimension_scores: dict[str, float]) -> None:
+    """Attach risk_safety_score, risk_severity, and severity_label to the risk entry.
+
+    Only the Risk dimension gets these extra fields; all other agents are unchanged.
+    risk_safety_score = current score (100 minus penalties, clamped 0-100)
+    risk_severity     = 100 - risk_safety_score  (how much safety was lost)
+    """
+    if "risk" not in all_findings or "risk" not in dimension_scores:
+        return
+    risk_safety_score = round(dimension_scores["risk"], 1)
+    risk_severity = round(100.0 - risk_safety_score, 1)
+    all_findings["risk"].update({
+        "risk_safety_score": risk_safety_score,
+        "risk_severity": risk_severity,
+        "severity_label": _risk_severity_label(risk_severity),
+    })
+
+
 def compute_overall_score(dimension_scores: dict[str, float]) -> float:
-    """Weighted average of dimension scores using DIMENSION_WEIGHTS."""
+    """Weighted average only over dimensions that were actually analyzed."""
     total_w = 0.0
     acc = 0.0
-    for dim, w in DIMENSION_WEIGHTS.items():
-        score = float(dimension_scores.get(dim, 100.0))
-        acc += w * score
+    for dim, score in dimension_scores.items():
+        w = DIMENSION_WEIGHTS.get(str(dim), 0.0)
+        acc += w * float(score)
         total_w += w
     if total_w <= 0:
         return round(100.0, 1)
