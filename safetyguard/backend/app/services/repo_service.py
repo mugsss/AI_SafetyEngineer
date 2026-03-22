@@ -1,10 +1,8 @@
 import os
 import shutil
-import tempfile
+import subprocess
 import uuid
 import zipfile
-
-from git import Repo
 
 from app.config import settings
 
@@ -14,10 +12,12 @@ def _repos_base() -> str:
     raw = (getattr(settings, "CLONE_WORK_DIR", None) or "").strip()
     if raw:
         return os.path.abspath(os.path.expanduser(raw))
-    return os.path.join(tempfile.gettempdir(), "safetyguard_repos")
+    # ~/.cache/safetyguard_repos — avoids macOS EPERM on /tmp and Desktop/iCloud paths
+    return os.path.join(os.path.expanduser("~"), ".cache", "safetyguard_repos")
 
 
 def _make_work_dir() -> str:
+    """Create an empty directory (e.g. for zip extract)."""
     base = _repos_base()
     os.makedirs(base, exist_ok=True)
     path = os.path.join(base, f"sg_{uuid.uuid4().hex[:12]}")
@@ -25,21 +25,42 @@ def _make_work_dir() -> str:
     return path
 
 
-def clone_repo(repo_url: str, branch: str = "main") -> str:
-    work_dir = _make_work_dir()
-    # Skip Git LFS smudge so large dataset blobs do not block or fill disk during clone
-    clone_env = {
+def _git_env() -> dict[str, str]:
+    return {
         **os.environ,
         "GIT_TEMPLATE_DIR": "",
         "GIT_LFS_SKIP_SMUDGE": "1",
     }
-    try:
-        Repo.clone_from(repo_url, work_dir, branch=branch, depth=1, env=clone_env)
-    except Exception:
+
+
+def clone_repo(repo_url: str, branch: str = "main") -> str:
+    """Clone via the real `git` binary (more reliable than GitPython on some macOS setups)."""
+    base = _repos_base()
+    os.makedirs(base, exist_ok=True)
+    work_dir = os.path.join(base, f"sg_{uuid.uuid4().hex[:12]}")
+    env = _git_env()
+
+    def _run(args: list[str]) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            args,
+            env=env,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=900,
+        )
+
+    # Destination must not exist — git creates it
+    proc = _run(
+        ["git", "clone", "-v", "--depth", "1", "--branch", branch, repo_url, work_dir])
+    if proc.returncode != 0:
         shutil.rmtree(work_dir, ignore_errors=True)
-        work_dir = _make_work_dir()
-        # Default branch (often main/master) when named branch is missing or wrong
-        Repo.clone_from(repo_url, work_dir, depth=1, env=clone_env)
+        work_dir = os.path.join(base, f"sg_{uuid.uuid4().hex[:12]}")
+        proc = _run(["git", "clone", "-v", "--depth", "1", repo_url, work_dir])
+        if proc.returncode != 0:
+            err = (proc.stderr or proc.stdout or "").strip() or f"exit {proc.returncode}"
+            raise RuntimeError(f"git clone failed: {err}")
+
     return work_dir
 
 
