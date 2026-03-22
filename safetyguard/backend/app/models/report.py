@@ -20,6 +20,9 @@ class SafetyReport(Base):
     dimension_scores: Mapped[dict] = mapped_column(JSON)
     findings: Mapped[dict] = mapped_column(JSON)
     dependency_graph: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    code_graph: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    code_index_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    code_index_error: Mapped[str | None] = mapped_column(String(2000), nullable=True)
     executive_summary: Mapped[str | None] = mapped_column(String(5000), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow

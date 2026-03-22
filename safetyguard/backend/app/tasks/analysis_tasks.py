@@ -39,6 +39,23 @@ def execute_analysis(run_id: str) -> dict:
             raise ValueError("No repo_url or upload_id provided")
 
         from app.agents.workflows import build_safety_analysis_graph
+        from app.services.code_index_service import index_codebase
+        from app.utils.file_tools import set_run_id, set_code_graph_for_rag
+
+        idx_result = {"graph": None, "status": "skipped", "error": None, "vector_index_ready": False}
+        try:
+            idx_result = index_codebase(run_id, repo_path)
+        except Exception as e:
+            logger.warning("Code indexing failed (continuing analysis): %s", e)
+            idx_result = {
+                "graph": None,
+                "status": "failed",
+                "error": str(e)[:2000],
+                "vector_index_ready": False,
+            }
+
+        set_run_id(run_id)
+        set_code_graph_for_rag(idx_result.get("graph"))
 
         initial_state = {
             "repo_path": repo_path,
@@ -51,12 +68,20 @@ def execute_analysis(run_id: str) -> dict:
             "status": "running",
             "progress": 0,
             "current_agent": "initializing",
+            "code_graph": idx_result.get("graph"),
+            "code_index_status": idx_result.get("status"),
+            "code_index_error": idx_result.get("error"),
         }
 
         graph = build_safety_analysis_graph().compile()
 
         import asyncio
-        result = asyncio.run(graph.ainvoke(initial_state))
+
+        try:
+            result = asyncio.run(graph.ainvoke(initial_state))
+        finally:
+            set_run_id("")
+            set_code_graph_for_rag(None)
 
         final_report = result.get("final_report", {})
         report = SafetyReport(
@@ -66,31 +91,37 @@ def execute_analysis(run_id: str) -> dict:
             findings=final_report.get("findings", {}),
             dependency_graph=final_report.get("dependency_graph"),
             executive_summary=final_report.get("executive_summary", ""),
+            code_graph=final_report.get("code_graph"),
+            code_index_status=final_report.get("code_index_status"),
+            code_index_error=final_report.get("code_index_error"),
         )
         db.add(report)
         run.status = "completed"
         run.finished_at = datetime.utcnow()
         db.commit()
 
-        from app.utils.n8n_webhook import emit_workflow_event
-
         base = (settings.FRONTEND_BASE_URL or "").rstrip("/")
-        emit_workflow_event(
-            "analysis.completed",
-            run_id=run_id,
-            status="completed",
-            user_id=run.user_id,
-            extra={
-                "repo_url": run.repo_url or "",
-                "branch": run.branch or "",
-                "overall_score": final_report.get("overall_score"),
-                "dimension_scores": final_report.get("dimension_scores") or {},
-                "executive_summary": (final_report.get("executive_summary") or "")[:2000],
-                "links": {
-                    "report": f"{base}/report/{run_id}" if base else f"/report/{run_id}",
+        try:
+            from app.utils.n8n_webhook import emit_workflow_event
+
+            emit_workflow_event(
+                "analysis.completed",
+                run_id=run_id,
+                status="completed",
+                user_id=run.user_id,
+                extra={
+                    "repo_url": run.repo_url or "",
+                    "branch": run.branch or "",
+                    "overall_score": final_report.get("overall_score"),
+                    "dimension_scores": final_report.get("dimension_scores") or {},
+                    "executive_summary": (final_report.get("executive_summary") or "")[:2000],
+                    "links": {
+                        "report": f"{base}/report/{run_id}" if base else f"/report/{run_id}",
+                    },
                 },
-            },
-        )
+            )
+        except Exception:
+            logger.exception("Workflow webhook emit failed (run %s completed anyway)", run_id)
 
         return {"status": "completed", "overall_score": final_report.get("overall_score", 0)}
 
@@ -103,22 +134,25 @@ def execute_analysis(run_id: str) -> dict:
                 run.error_message = str(e)[:2000]
                 run.finished_at = datetime.utcnow()
                 db.commit()
-                from app.utils.n8n_webhook import emit_workflow_event
-
                 base = (settings.FRONTEND_BASE_URL or "").rstrip("/")
-                emit_workflow_event(
-                    "analysis.failed",
-                    run_id=run_id,
-                    status="failed",
-                    user_id=run.user_id,
-                    extra={
-                        "repo_url": run.repo_url or "",
-                        "error_message": str(e)[:2000],
-                        "links": {
-                            "report": f"{base}/report/{run_id}" if base else f"/report/{run_id}",
+                try:
+                    from app.utils.n8n_webhook import emit_workflow_event
+
+                    emit_workflow_event(
+                        "analysis.failed",
+                        run_id=run_id,
+                        status="failed",
+                        user_id=run.user_id,
+                        extra={
+                            "repo_url": run.repo_url or "",
+                            "error_message": str(e)[:2000],
+                            "links": {
+                                "report": f"{base}/report/{run_id}" if base else f"/report/{run_id}",
+                            },
                         },
-                    },
-                )
+                    )
+                except Exception:
+                    logger.exception("Workflow webhook emit failed (run %s already marked failed)", run_id)
         except Exception:
             pass
         return {"error": str(e)}

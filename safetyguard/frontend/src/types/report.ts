@@ -56,7 +56,36 @@ export interface SafetyReport {
   dimension_scores: Record<string, number>;
   findings: Record<string, DimensionResult>;
   dependency_graph: DependencyGraph;
+  /** Repository import graph (Graph RAG) */
+  code_graph?: CodeGraph | null;
+  code_index_status?: string | null;
+  code_index_error?: string | null;
   created_at: string;
+}
+
+export interface CodeGraphNode {
+  id: string;
+  label: string;
+  type: 'file' | 'external';
+  language?: string;
+}
+
+export interface CodeGraphEdge {
+  id?: string;
+  source: string;
+  target: string;
+  relation?: string;
+}
+
+export interface CodeGraph {
+  nodes: CodeGraphNode[];
+  edges: CodeGraphEdge[];
+  stats?: {
+    file_count?: number;
+    edge_count?: number;
+    truncated?: boolean;
+    vector_index_ready?: boolean;
+  };
 }
 
 export interface DependencyGraph {

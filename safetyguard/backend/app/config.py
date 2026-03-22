@@ -24,6 +24,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 _BACKEND_ROOT = Path(__file__).resolve().parent.parent
 # backend/ -> safetyguard/
 _REPO_ROOT = _BACKEND_ROOT.parent
+_DEFAULT_SQLITE_PATH = (_BACKEND_ROOT / "safetyguard.db").resolve()
 
 
 def _env_file_paths() -> tuple[str, ...]:
@@ -44,7 +45,8 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    DATABASE_URL: str = "sqlite:///./safetyguard.db"
+    # Use an absolute path so API/worker processes share one DB regardless of CWD.
+    DATABASE_URL: str = f"sqlite:///{_DEFAULT_SQLITE_PATH.as_posix()}"
     REDIS_URL: str = "redis://localhost:6379/0"
     SECRET_KEY: str = "dev-secret-key-change-in-production-min32"
     ALGORITHM: str = "HS256"
@@ -79,8 +81,22 @@ class Settings(BaseSettings):
     UPLOAD_DIR: str = "./uploads"
     MAX_UPLOAD_SIZE_MB: int = 200
 
+    # Git clone root: empty => backend/.data/clones (workspace-local; avoids macOS/Cursor EPERM on ~/.cache).
+    # Set CLONE_WORK_DIR to an absolute path on servers (e.g. /var/safetyguard/clones).
+    CLONE_WORK_DIR: str = ""
+
     REPO_EXPLORER_MAX_TURNS: int = 8
     AGENT_MAX_TOOL_ROUNDS: int = 3
+
+    # Code graph RAG: local Chroma persist dir (per-run subfolders)
+    CODE_INDEX_DIR: str = "./code_index"
+    EMBEDDING_MODEL: str = Field(
+        default="text-embedding-3-small",
+        validation_alias=AliasChoices("EMBEDDING_MODEL", "OPENAI_EMBEDDING_MODEL"),
+    )
+    # Max nodes returned in API / full graph cap for storage
+    CODE_GRAPH_MAX_NODES: int = 2500
+    CODE_GRAPH_MAX_EDGES: int = 8000
 
     def llm_provider(self) -> Literal["openai", "featherless"] | None:
         """Which provider is active."""
@@ -135,6 +151,14 @@ class Settings(BaseSettings):
             "base_url": self.FEATHERLESS_API_BASE,
             "api_key": self.FEATHERLESS_API_KEY.strip(),
             **common,
+        }
+
+    def get_embedding_request(self) -> dict:
+        """OpenAI-compatible embeddings API (same base URL/key as LLM by default)."""
+        return {
+            "base_url": self.FEATHERLESS_API_BASE.rstrip("/"),
+            "api_key": self.FEATHERLESS_API_KEY,
+            "model": self.EMBEDDING_MODEL,
         }
 
 

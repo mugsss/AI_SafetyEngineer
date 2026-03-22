@@ -27,6 +27,7 @@ import { ScoreBar } from '@/components/shared/ScoreBar';
 import { ReportSidebar, customDimLabel, type ReportTab } from '@/components/report/ReportSidebar';
 import { DimensionTab } from '@/components/report/DimensionTab';
 import { FindingCard } from '@/components/report/FindingCard';
+import { CodeGraphView } from '@/components/code-graph/CodeGraphView';
 import { cn } from '@/lib/utils';
 import { BUILTIN_DIMENSIONS } from '@/types/report';
 import type { Finding, Severity, SafetyReport } from '@/types/report';
@@ -57,7 +58,7 @@ function dimensionLabel(key: string): string {
 }
 
 const STATIC_TABS = new Set<string>([
-  'overview', 'fixes',
+  'overview', 'codemap', 'fixes',
   ...BUILTIN_DIMENSIONS,
 ]);
 
@@ -577,6 +578,7 @@ export default function ReportPage() {
         activeTab={activeTab}
         onTabChange={setActiveTab}
         report={report}
+        runId={runId}
       />
       <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
         <div className="p-6">
@@ -699,6 +701,25 @@ function TabContent({
 }) {
   if (activeTab === 'overview') {
     return <OverviewTab report={report} onTabChange={onTabChange} />;
+  }
+
+  if (activeTab === 'codemap') {
+    return (
+      <div className="space-y-4">
+        <div className="space-y-1">
+          <h2 className="text-2xl font-bold text-foreground">Repository code map</h2>
+          <p className="text-sm text-muted-foreground">
+            Import relationships between source files. Use semantic search to highlight retrieval paths used by Graph RAG.
+          </p>
+        </div>
+        <CodeGraphView
+          runId={report.run_id}
+          graph={report.code_graph ?? undefined}
+          codeIndexStatus={report.code_index_status}
+          codeIndexError={report.code_index_error}
+        />
+      </div>
+    );
   }
 
   if (activeTab === 'redteam') {

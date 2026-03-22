@@ -114,7 +114,12 @@ def emit_workflow_event(
                     sent += 1
                     break
                 last_err = f"{candidate[:120]} -> HTTP {r.status_code}: {(r.text or '')[:200]}"
-                logger.warning("Webhook returned %s for %s", r.status_code, candidate[:120])
+                # Optional automation: 4xx/5xx must not alarm operators or imply analysis failed
+                logger.debug(
+                    "Webhook non-success %s for %s (analysis continues)",
+                    r.status_code,
+                    candidate[:120],
+                )
             except Exception as exc:
                 last_err = f"{candidate[:120]} -> {str(exc)[:200]}"
                 logger.exception(
