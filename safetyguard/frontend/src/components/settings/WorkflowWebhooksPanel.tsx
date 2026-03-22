@@ -32,6 +32,7 @@ import { cn } from '@/lib/utils';
 function resolveN8nAppOrigin(
   webhookUrls: string[],
   n8nBaseFromSettings?: string | null,
+  serverEnvWebhookUrl?: string | null,
 ): string | null {
   const fromEnv = process.env.NEXT_PUBLIC_N8N_APP_URL?.trim();
   if (fromEnv) {
@@ -49,7 +50,11 @@ function resolveN8nAppOrigin(
       return fromSettings.replace(/\/$/, '');
     }
   }
-  for (const raw of webhookUrls) {
+  const combined = [
+    ...(serverEnvWebhookUrl ? [serverEnvWebhookUrl] : []),
+    ...webhookUrls,
+  ];
+  for (const raw of combined) {
     try {
       const u = new URL(raw);
       if (
@@ -99,8 +104,9 @@ export function WorkflowWebhooksPanel() {
       resolveN8nAppOrigin(
         items.map((w) => w.url),
         appSettings?.n8n_base_url,
+        appSettings?.n8n_webhook_url_from_env,
       ),
-    [items, appSettings?.n8n_base_url],
+    [items, appSettings?.n8n_base_url, appSettings?.n8n_webhook_url_from_env],
   );
 
   const createMut = useMutation({

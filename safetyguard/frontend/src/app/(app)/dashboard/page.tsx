@@ -230,6 +230,7 @@ export default function DashboardPage() {
     queryFn: () => reportsApi.get(latestCompletedRun!.id),
     enabled: !!latestCompletedRun,
     retry: 1,
+    staleTime: 30_000,
   });
 
   const findingsRec = useMemo(() => safeFindingsRecord(report), [report]);
@@ -276,7 +277,11 @@ export default function DashboardPage() {
     }, 0);
   }, [findingsRec]);
 
-  const isLoading = runsLoading || (!!latestCompletedRun && reportLoading);
+  /** Runs list loaded — UI can show activity even if report is still fetching. */
+  const isRunsLoading = runsLoading;
+  const isReportLoading = !!latestCompletedRun && reportLoading;
+  /** Score, sparkline, dimensional cards, glass hero (depend on report JSON). */
+  const isReportSectionLoading = isRunsLoading || isReportLoading;
   const hasNoRuns = !runsLoading && !runList?.runs?.length;
   const recentRuns = runList?.runs?.slice(0, 5) ?? [];
   const runningCount = recentRuns.filter((r) => r.status === 'running').length;
@@ -290,9 +295,17 @@ export default function DashboardPage() {
         runningCount,
         totalFindings,
         criticalCount,
-        isLoading,
+        isLoading: isReportSectionLoading,
       }),
-    [currentScore, scoreDiff, runList?.total, runningCount, totalFindings, criticalCount, isLoading],
+    [
+      currentScore,
+      scoreDiff,
+      runList?.total,
+      runningCount,
+      totalFindings,
+      criticalCount,
+      isReportSectionLoading,
+    ],
   );
 
   if (hasNoRuns) return <EmptyState />;
@@ -332,8 +345,11 @@ export default function DashboardPage() {
             'Complete a scan to populate scores, dimensional risk, and evidence-backed findings.'
           )}
         </p>
+        {isReportLoading && !isRunsLoading && (
+          <p className="text-xs text-muted-foreground">Loading report details…</p>
+        )}
 
-        {(criticalCount > 0 || highSeverityCount > 0) && !isLoading && report && (
+        {(criticalCount > 0 || highSeverityCount > 0) && !isReportSectionLoading && report && (
           <div
             className={cn(
               'flex flex-col gap-3 rounded-2xl border px-4 py-3 sm:flex-row sm:items-center sm:justify-between',
@@ -422,12 +438,12 @@ export default function DashboardPage() {
             <p className="mb-4 text-xs font-medium uppercase tracking-wider text-muted-foreground">
               Latest safety score
             </p>
-            {isLoading ? (
+            {isReportSectionLoading ? (
               <SkeletonBlock className="h-56 w-56 rounded-full" />
             ) : (
               <SafetyScoreGauge score={currentScore} />
             )}
-            {scoreDiff !== null && !isLoading && (
+            {scoreDiff !== null && !isReportSectionLoading && (
               <div className="mt-4 flex items-center gap-1.5">
                 <TrendIndicator diff={scoreDiff} />
                 <span className="text-xs text-muted-foreground">vs. previous run</span>
@@ -448,7 +464,7 @@ export default function DashboardPage() {
               )}
             </div>
             <div className="flex-1">
-              {isLoading ? (
+              {isReportSectionLoading ? (
                 <SkeletonBlock className="h-full min-h-[160px] w-full rounded-xl" />
               ) : sparklineData.length > 1 ? (
                 <ScoreSparkline data={sparklineData} />
@@ -481,7 +497,7 @@ export default function DashboardPage() {
           )}
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {isLoading ? (
+          {isReportSectionLoading ? (
             DASHBOARD_DIMENSIONS.map((d) => <SkeletonBlock key={d} className="h-32 rounded-2xl" />)
           ) : !latestCompletedRun ? (
             <p className="col-span-full rounded-2xl border border-border/60 bg-card/40 px-4 py-8 text-center text-sm text-muted-foreground">
@@ -516,7 +532,7 @@ export default function DashboardPage() {
           </Link>
         </div>
         <Card className="divide-y divide-border/60 overflow-hidden rounded-3xl border-border/60 bg-card p-1">
-          {isLoading ? (
+          {isRunsLoading ? (
             Array.from({ length: 3 }).map((_, i) => (
               <div key={i} className="flex items-center gap-4 px-4 py-3">
                 <SkeletonBlock className="h-9 w-9 shrink-0 rounded-lg" />

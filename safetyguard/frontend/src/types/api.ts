@@ -30,6 +30,8 @@ export interface AppSettings {
   /** Write-only; always empty in GET responses */
   n8n_api_key?: string;
   n8n_api_key_set?: boolean;
+  /** Read-only: from server N8N_WEBHOOK_URL (for “Open n8n” / origin resolution) */
+  n8n_webhook_url_from_env?: string | null;
   fail_ci_on_critical: boolean;
   notification_email?: string;
   slack_webhook_url?: string;

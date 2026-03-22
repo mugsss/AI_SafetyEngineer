@@ -66,7 +66,7 @@ export function ScoreSparkline({ data, className, height = 160 }: ScoreSparkline
 
   return (
     <div className={className} style={{ width: '100%', height, minHeight: height }}>
-      <ResponsiveContainer width="100%" height="100%" minHeight={height}>
+      <ResponsiveContainer width="100%" height="100%" minHeight={height} debounce={200}>
         <AreaChart data={clean} margin={{ top: 4, right: 4, bottom: 0, left: 4 }}>
           <defs>
             <linearGradient id="scoreGradient" x1="0" y1="0" x2="0" y2="1">

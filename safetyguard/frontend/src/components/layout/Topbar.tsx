@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Home, Plus, Menu } from 'lucide-react';
@@ -48,6 +48,9 @@ function getPageSubtitle(pathname: string): string | null {
 export function Topbar() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
   const pageTitle = getPageTitle(pathname);
   const subtitle = getPageSubtitle(pathname);
 

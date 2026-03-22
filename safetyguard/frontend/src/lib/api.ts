@@ -11,7 +11,8 @@ import type {
 import type { Run, RunListResponse, CreateRunInput } from '@/types/run';
 import type { SafetyReport, DependencyGraph } from '@/types/report';
 
-const baseURL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
+/** Strip trailing slashes so paths like `/api/runs` never become `//api/runs`. */
+const baseURL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000').replace(/\/+$/, '');
 
 /** Use for user-facing error messages (e.g. “cannot reach API”). */
 export function getApiBaseUrl(): string {
@@ -54,6 +55,7 @@ export function formatApiError(error: unknown): string {
 const client: AxiosInstance = axios.create({
   baseURL,
   headers: { 'Content-Type': 'application/json' },
+  /** Default; long-running analysis uses overrides where needed. */
   timeout: 120_000,
 });
 
@@ -66,6 +68,7 @@ export const runsApi = {
   async list(page = 1, limit = 20): Promise<RunListResponse> {
     const { data } = await client.get<RunListResponse>('/api/runs', {
       params: { page, limit },
+      timeout: 30_000,
     });
     return data;
   },
@@ -82,13 +85,16 @@ export const runsApi = {
 
 export const reportsApi = {
   async get(runId: string): Promise<SafetyReport> {
-    const { data } = await client.get<SafetyReport>(`/api/reports/${runId}`);
+    const { data } = await client.get<SafetyReport>(`/api/reports/${runId}`, {
+      timeout: 45_000,
+    });
     return data;
   },
 
   async getDependencyGraph(runId: string): Promise<DependencyGraph> {
     const { data } = await client.get<DependencyGraph>(
       `/api/reports/${runId}/dependency-graph`,
+      { timeout: 45_000 },
     );
     return data;
   },

@@ -37,6 +37,8 @@ class AppSettings(BaseModel):
     n8n_base_url: str | None = None
     n8n_api_key: str | None = None
     n8n_api_key_set: bool = False
+    # Read-only: surfaced from server env N8N_WEBHOOK_URL for Settings UI (n8n links, etc.)
+    n8n_webhook_url_from_env: str | None = None
 
 
 class TestKeyInput(BaseModel):
@@ -71,6 +73,13 @@ def _settings_response_payload(stored: dict) -> dict:
     has_n8n_key = bool(merged.get("n8n_api_key"))
     merged["n8n_api_key"] = None
     merged["n8n_api_key_set"] = has_n8n_key
+    # When DB has no n8n instance URL, show server env so Settings + n8n links work without re-save.
+    n8n_base = (merged.get("n8n_base_url") or "").strip()
+    if not n8n_base:
+        env_base = (app_settings.N8N_BASE_URL or "").strip()
+        if env_base:
+            merged["n8n_base_url"] = env_base
+    merged["n8n_webhook_url_from_env"] = (app_settings.N8N_WEBHOOK_URL or "").strip() or None
     return merged
 
 
@@ -101,7 +110,7 @@ def update_settings(
     )
     patch = data.model_dump(
         exclude_unset=True,
-        exclude={"n8n_api_key_set"},
+        exclude={"n8n_api_key_set", "n8n_webhook_url_from_env"},
     )
     old = row.data if row and isinstance(row.data, dict) else {}
 

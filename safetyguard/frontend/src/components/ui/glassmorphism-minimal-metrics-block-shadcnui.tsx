@@ -94,7 +94,7 @@ export function GlassmorphismMinimalMetricsBlock({
           {metrics.map((metric) => (
             <div key={metric.label}>
               <Card className="group relative overflow-hidden rounded-3xl border border-border/50 bg-card p-8 transition-transform duration-300 hover:-translate-y-0.5">
-                <div className="absolute inset-0 bg-gradient-to-br from-foreground/[0.03] via-transparent to-transparent" />
+                <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-foreground/[0.03] via-transparent to-transparent" />
                 <div className="relative z-10 space-y-5">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-medium uppercase tracking-[0.25em] text-foreground/60">
