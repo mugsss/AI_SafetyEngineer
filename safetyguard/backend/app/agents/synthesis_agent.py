@@ -44,14 +44,36 @@ def _generate_summary(dim_name: str, data: dict) -> str:
     )
 
 
+_DIM_LABELS = {
+    "risk": "Risk Severity",
+    "security": "Security",
+    "hallucinations": "Hallucinations",
+    "failures": "Failure Resilience",
+    "cost": "Cost Efficiency",
+    "privacy": "Privacy",
+    "observability": "Observability",
+    "performance": "Performance",
+    "resources": "Resources",
+    "redteam": "Red Team",
+}
+
+
 def _generate_executive_summary(
     score: float,
     dim_scores: dict[str, float],
     all_findings: dict,
 ) -> str:
     """Overall narrative for leadership: score, weakest areas, and severity mix."""
-    weakest = sorted(dim_scores.items(), key=lambda x: x[1])[:3]
-    weakest_txt = ", ".join(f"{d} ({s:.0f})" for d, s in weakest) if weakest else "n/a"
+    # Only include dimensions that actually produced findings in the weakest list
+    scored_dims = {
+        dim: s for dim, s in dim_scores.items()
+        if (all_findings.get(dim, {}).get("finding_count", 0) or 0) > 0
+    }
+    weakest = sorted(scored_dims.items(), key=lambda x: x[1])[:3]
+    weakest_txt = (
+        ", ".join(f"{_DIM_LABELS.get(d, d)} ({s:.0f})" for d, s in weakest)
+        if weakest else "no scored findings yet"
+    )
 
     crit = high = 0
     for _dim, data in all_findings.items():
@@ -66,6 +88,9 @@ def _generate_executive_summary(
             elif sev == "high":
                 high += 1
 
+    agents_run = len(dim_scores)
+    agents_with_findings = len(scored_dims)
+
     posture = "strong"
     if score < 60:
         posture = "needs urgent remediation"
@@ -74,11 +99,16 @@ def _generate_executive_summary(
     elif score < 90:
         posture = "acceptable with gaps"
 
+    coverage_note = (
+        f" ({agents_run} agent(s) run, {agents_with_findings} with findings)"
+        if agents_run < 10 else ""
+    )
+
     return (
-        f"Overall SafetyGuard score is {score:.1f}/100 ({posture}). "
+        f"Overall SafetyGuard score is {score:.1f}/100 ({posture}){coverage_note}. "
         f"Lowest-scoring dimensions: {weakest_txt}. "
-        f"Severity mix: {crit} critical, {high} high across all dimensions. "
-        "Prioritize fixes that reduce critical/high items in security, privacy, and red-team surfaces."
+        f"Severity mix: {crit} critical, {high} high across analyzed dimensions. "
+        "Prioritize fixes that reduce critical/high items in the flagged dimensions."
     )
 
 
@@ -135,7 +165,7 @@ async def synthesis_agent(state: SafetyGuardState) -> dict:
         }
 
     dimension_scores = compute_dimension_scores(all_findings)
-    overall_score = compute_overall_score(dimension_scores)
+    overall_score = compute_overall_score(dimension_scores, all_findings)
 
     for dim_name, data in all_findings.items():
         data["score"] = dimension_scores.get(dim_name, 100)

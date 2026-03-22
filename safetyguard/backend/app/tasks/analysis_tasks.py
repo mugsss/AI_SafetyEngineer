@@ -55,7 +55,7 @@ def execute_analysis(run_id: str) -> dict:
                 }
 
             dimension_scores = compute_dimension_scores(all_findings)
-            overall_score = compute_overall_score(dimension_scores)
+            overall_score = compute_overall_score(dimension_scores, all_findings)
 
             for dim_name in all_findings:
                 all_findings[dim_name]["score"] = dimension_scores.get(dim_name, 100)

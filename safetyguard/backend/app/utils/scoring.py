@@ -70,14 +70,34 @@ def augment_risk_findings(all_findings: dict, dimension_scores: dict[str, float]
     })
 
 
-def compute_overall_score(dimension_scores: dict[str, float]) -> float:
-    """Weighted average only over dimensions that were actually analyzed."""
+def compute_overall_score(
+    dimension_scores: dict[str, float],
+    all_findings: dict | None = None,
+) -> float:
+    """Weighted average only over dimensions that produced at least one finding.
+
+    Dimensions that ran but found nothing (score=100, finding_count=0) are
+    excluded so they don't artificially inflate the overall score.
+    If no dimension has findings, fall back to averaging all analyzed dims.
+    """
     total_w = 0.0
     acc = 0.0
     for dim, score in dimension_scores.items():
         w = DIMENSION_WEIGHTS.get(str(dim), 0.0)
+        if all_findings is not None:
+            finding_count = (all_findings.get(dim) or {}).get("finding_count", 0) or 0
+            if finding_count == 0:
+                continue
         acc += w * float(score)
         total_w += w
+
+    # Fallback: if every agent found nothing, average all analyzed dims
+    if total_w <= 0:
+        for dim, score in dimension_scores.items():
+            w = DIMENSION_WEIGHTS.get(str(dim), 0.0)
+            acc += w * float(score)
+            total_w += w
+
     if total_w <= 0:
         return round(100.0, 1)
     return round(acc / total_w, 1)
