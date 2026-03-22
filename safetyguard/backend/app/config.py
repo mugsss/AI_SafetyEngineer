@@ -10,6 +10,7 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # app/config.py -> app/ -> backend/
@@ -39,7 +40,21 @@ class Settings(BaseSettings):
 
     FEATHERLESS_API_KEY: str = "mock"
     FEATHERLESS_API_BASE: str = "https://api.featherless.ai/v1"
-    LLM_MODEL: str = "Qwen/Qwen3-32B"
+    LLM_MODEL: str = Field(
+        default="Qwen/Qwen3-32B",
+        validation_alias=AliasChoices("LLM_MODEL", "OPENAI_MODEL"),
+    )
+
+    MIRO_ACCESS_TOKEN: str = ""
+
+    # Optional: n8n (or any HTTP listener) — webhook URL from "Webhook" node in n8n
+    N8N_WEBHOOK_URL: str = ""
+    N8N_WEBHOOK_SECRET: str = ""
+    # Optional: n8n Public API (Settings → n8n API) — same host as your instance, no /webhook path
+    N8N_BASE_URL: str = ""
+    N8N_API_KEY: str = ""
+    # Used in webhook payloads for deep links (set to your deployed frontend URL)
+    FRONTEND_BASE_URL: str = "http://localhost:3000"
 
     UPLOAD_DIR: str = "./uploads"
     MAX_UPLOAD_SIZE_MB: int = 200

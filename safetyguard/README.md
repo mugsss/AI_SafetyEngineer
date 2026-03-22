@@ -58,7 +58,33 @@ npm run dev
 
 ## Mock Mode
 
-When `OPENAI_API_KEY` is not set or set to `"mock"`, the backend returns deterministic mock findings so the UI can be developed without LLM costs.
+When `FEATHERLESS_API_KEY` is not set or set to `"mock"`, the backend returns deterministic mock findings so the UI can be developed without LLM costs.
+
+## n8n workflow automation (optional)
+
+**Ready-made workflow:** Import `n8n/safetyguard-inbound-workflow.json` and follow **`n8n/README.md`** (activate → copy Production URL → paste into SafetyGuard Settings → run a test or analysis).
+
+**Purpose:** Keep SafetyGuard focused on analysis while n8n handles *what happens next*—Slack/Teams alerts, email digests, Jira/Linear tickets, Google Sheets logging, CRM updates, or conditional escalation when scores drop below a threshold.
+
+**How it works:** After each run finishes (success or failure), the backend `POST`s JSON to every configured webhook:
+
+1. **Settings UI (recommended):** **Settings → Workflow automation (n8n)** — add one or more named URLs (e.g. internal vs customer n8n flows), optional per-URL signing secret, **Test** ping, enable/disable.
+2. **Server env (global fallback):** In `.env`:
+   - `N8N_WEBHOOK_URL=<webhook URL>` — merged with UI-configured URLs (deduped by URL).
+   - `N8N_WEBHOOK_SECRET=<optional>` — HMAC for the env URL only.
+   - `FRONTEND_BASE_URL=https://your-app.example.com` — used for `links.report` in the payload.
+
+**API:** `GET/POST/PUT/DELETE /api/settings/workflow-webhooks`, `POST /api/settings/workflow-webhooks/test`. Events: `analysis.completed`, `analysis.failed` (see `app/utils/n8n_webhook.py`).
+
+**n8n Public API (optional):** In **Settings** → **n8n Public API**, set your **instance root URL** (e.g. `https://yourname.app.n8n.cloud`) and the key from n8n **Settings → n8n API**. Use **Test n8n API** to verify (`GET /api/v1/workflows`). You can also set `N8N_BASE_URL` and `N8N_API_KEY` in `.env`. *Note: n8n’s REST API may require a paid plan — see [n8n API docs](https://docs.n8n.io/api/).*
+
+**Database:** Webhooks and other app settings are stored in SQLite/Postgres (`workflow_webhooks`, `user_app_settings`). Run `alembic upgrade head` if you use migrations; otherwise `create_all` on startup creates new tables.
+
+**Why this makes the product stronger:** Multiple outbound targets, persisted config, and optional signatures—without redeploying for every new integration.
+
+## Authentication
+
+The API supports JWT login, but the UI can be used **without login**: unauthenticated requests are mapped to a shared **anonymous** user.
 
 ## Troubleshooting
 
@@ -67,11 +93,11 @@ When `OPENAI_API_KEY` is not set or set to `"mock"`, the backend returns determi
 1. **Backend must be running** on the URL the frontend uses (`NEXT_PUBLIC_API_URL` in `frontend/.env.local`, default `http://localhost:8000`). Check: `curl http://localhost:8000/health` → `{"status":"ok"}`.
 2. **CORS** – The API allows `localhost` and `127.0.0.1` on any port. If you use another origin, adjust `allow_origin_regex` / `allow_origins` in `backend/app/main.py`.
 3. **Clear Next cache** if the app behaves oddly: `cd frontend && npm run clean && npm run dev`.
-4. The **New analysis** page now shows the **real error message** from the API (e.g. connection refused vs. server error).
+4. The **New analysis** page shows the **real error message** from the API (e.g. connection refused vs. server error).
 
 ### Backend env file
 
-- Put your **`.env` in `safetyguard/`** (next to this README). The backend **automatically loads that file** even when you run `uvicorn` from `safetyguard/backend/` (previously only `backend/.env` in the current directory was read, so variables were silently ignored).
+- Put your **`.env` in `safetyguard/`** (next to this README). The backend **automatically loads that file** even when you run `uvicorn` from `safetyguard/backend/`.
 - Optional: add `backend/.env` for machine-specific overrides.
 - **Frontend:** copy `frontend/.env.example` → `frontend/.env.local` so `NEXT_PUBLIC_API_URL` matches the API (default `http://localhost:8000`).
 

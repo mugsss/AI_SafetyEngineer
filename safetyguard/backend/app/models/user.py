@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import uuid
 from datetime import datetime
 
@@ -22,3 +24,12 @@ class User(Base):
     )
 
     runs: Mapped[list["AnalysisRun"]] = relationship(back_populates="user")  # noqa: F821
+    workflow_webhooks: Mapped[list["WorkflowWebhook"]] = relationship(  # noqa: F821
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    app_settings_row: Mapped["UserAppSettings | None"] = relationship(  # noqa: F821
+        back_populates="user",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )

@@ -8,6 +8,9 @@ export function getSocket(): Socket {
   if (!socket) {
     socket = io(WS_URL, {
       autoConnect: false,
+      auth: (cb) => {
+        cb({});
+      },
       transports: ['websocket', 'polling'],
       reconnectionAttempts: 10,
       reconnectionDelay: 2000,

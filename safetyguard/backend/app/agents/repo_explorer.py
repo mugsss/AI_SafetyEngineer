@@ -50,7 +50,13 @@ def init_repo_scan(state: SafetyGuardState) -> dict[str, Any]:
     set_repo_root(repo_path)
 
     listing = list_files.invoke("")
-    file_index = [p.strip() for p in listing.splitlines() if p.strip() and not p.startswith("Error")]
+    file_index = [
+        p.strip()
+        for p in listing.splitlines()
+        if p.strip()
+        and not p.startswith("Error")
+        and not p.startswith("...")
+    ]
 
     meta = get_repo_metadata.invoke("")
     deps = get_dependency_info.invoke("")
