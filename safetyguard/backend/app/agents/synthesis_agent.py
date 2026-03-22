@@ -34,7 +34,7 @@ def _generate_summary(dim_name: str, data: dict) -> str:
         if isinstance(f, dict) and f.get("title"):
             titles.append(str(f["title"]))
     if count == 0:
-        return f"No issues recorded for {dim_name}; score {score:.0f}/100."
+        return f"No issues detected for {dim_name}."
     preview = "; ".join(titles[:3])
     if len(titles) > 3:
         preview += " …"

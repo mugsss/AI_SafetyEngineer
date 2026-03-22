@@ -75,62 +75,57 @@ export function DimensionTab({ name, data, className }: DimensionTabProps) {
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-1">
             <h2 className="text-2xl font-bold text-foreground">{name}</h2>
-            <p className="text-sm text-muted-foreground">{data.summary}</p>
+            <p className="text-sm text-muted-foreground">
+              {data.finding_count === 0 && data.risk_severity == null
+                ? `No issues detected for ${name.toLowerCase()}.`
+                : data.summary}
+            </p>
           </div>
 
-          {data.risk_severity != null ? (
-            <div className="flex flex-col items-end gap-0.5">
-              <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                Risk Severity
-              </span>
+          <div className="flex flex-col items-end gap-0.5">
+            <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              {data.risk_severity != null ? 'Risk Severity' : `${name} Score`}
+            </span>
+            {data.risk_severity == null && data.finding_count === 0 ? (
+              <span className="text-3xl font-bold tabular-nums text-muted-foreground/40">—</span>
+            ) : (
               <div className="flex items-baseline gap-1">
                 <span
                   className={cn(
                     'text-3xl font-bold tabular-nums',
-                    data.risk_severity <= 20
-                      ? 'text-green-400'
-                      : data.risk_severity <= 45
-                        ? 'text-yellow-400'
-                        : data.risk_severity <= 70
-                          ? 'text-orange-400'
-                          : 'text-red-400',
+                    data.risk_severity != null
+                      ? data.risk_severity <= 20 ? 'text-green-400'
+                        : data.risk_severity <= 45 ? 'text-yellow-400'
+                        : data.risk_severity <= 70 ? 'text-orange-400'
+                        : 'text-red-400'
+                      : data.score >= 70 ? 'text-green-400'
+                      : data.score >= 40 ? 'text-yellow-400'
+                      : 'text-red-400',
                   )}
                 >
-                  {Math.round(data.risk_severity)}
+                  {Math.round(data.risk_severity ?? data.score)}
                 </span>
                 <span className="text-xs text-muted-foreground">/ 100</span>
               </div>
-              {data.severity_label && (
-                <span
-                  className={cn(
-                    'mt-1 rounded-md border px-2 py-0.5 text-[11px] font-semibold',
-                    SEVERITY_LABEL_STYLES[data.severity_label] ??
-                      'bg-secondary text-muted-foreground border-border',
-                  )}
-                >
-                  {data.severity_label}
-                </span>
-              )}
-            </div>
-          ) : (
-            <div className="flex flex-col items-end gap-1">
+            )}
+            {data.severity_label ? (
               <span
                 className={cn(
-                  'text-3xl font-bold tabular-nums',
-                  data.score >= 70
-                    ? 'text-green-400'
-                    : data.score >= 40
-                      ? 'text-yellow-400'
-                      : 'text-red-400',
+                  'mt-1 rounded-md border px-2 py-0.5 text-[11px] font-semibold',
+                  SEVERITY_LABEL_STYLES[data.severity_label] ??
+                    'bg-secondary text-muted-foreground border-border',
                 )}
               >
-                {Math.round(data.score)}
+                {data.severity_label}
               </span>
-              <span className="text-xs text-muted-foreground">/ 100</span>
-            </div>
-          )}
+            ) : data.finding_count === 0 ? (
+              <span className="mt-1 text-[11px] text-muted-foreground/50">No findings detected</span>
+            ) : null}
+          </div>
         </div>
-        <ScoreBar score={data.score} showLabel={false} height="h-2" />
+        {(data.finding_count > 0 || data.risk_severity != null) && (
+          <ScoreBar score={data.risk_severity != null ? data.score : data.score} showLabel={false} height="h-2" />
+        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-2">

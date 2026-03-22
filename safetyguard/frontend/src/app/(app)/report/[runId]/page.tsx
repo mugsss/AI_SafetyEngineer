@@ -39,11 +39,11 @@ const SEVERITY_ORDER: Record<Severity, number> = {
 };
 
 const dimensionLabels: Record<string, string> = {
-  risk: 'Risk',
+  risk: 'Risk Severity',
   security: 'Security',
   hallucinations: 'Hallucinations',
-  failures: 'Failures',
-  cost: 'Cost',
+  failures: 'Failure Resilience',
+  cost: 'Cost Efficiency',
   privacy: 'Privacy',
   observability: 'Observability',
   performance: 'Performance',
@@ -106,14 +106,24 @@ function OverviewTab({
       )}>
           {dimEntries.map(([dim, score]) => {
             const isRisk = dim === 'risk';
-            const riskSeverity = report.findings?.risk?.risk_severity;
-            const severityLabel = report.findings?.risk?.severity_label;
+            const dimResult = report.findings?.[dim];
+            const riskSeverity = dimResult?.risk_severity;
+            const severityLabel = dimResult?.severity_label;
             const displayValue = isRisk && riskSeverity != null ? riskSeverity : score;
-            const displayLabel = isRisk ? 'Risk Severity' : (dimensionLabels[dim] ?? dim);
-            // Risk severity: high value = bad; other dims: high value = good
+            const displayLabel = dimensionLabels[dim] ?? dim;
+            const noFindings = (dimResult?.finding_count ?? 0) === 0;
+
+            // Risk: high value = bad; others: high value = good
             const valueColor = isRisk
-              ? displayValue <= 20 ? 'text-green-400' : displayValue <= 45 ? 'text-yellow-400' : displayValue <= 70 ? 'text-orange-400' : 'text-red-400'
-              : score >= 70 ? 'text-green-400' : score >= 40 ? 'text-yellow-400' : 'text-red-400';
+              ? displayValue <= 20 ? 'text-green-400'
+                : displayValue <= 45 ? 'text-yellow-400'
+                : displayValue <= 70 ? 'text-orange-400'
+                : 'text-red-400'
+              : noFindings && score === 100
+                ? 'text-muted-foreground'
+                : score >= 70 ? 'text-green-400'
+                : score >= 40 ? 'text-yellow-400'
+                : 'text-red-400';
 
             return (
               <Card
@@ -122,28 +132,32 @@ function OverviewTab({
                 onClick={() => onTabChange(dim)}
               >
                 <CardContent className="flex flex-col items-center gap-2 p-4">
-                  <span className={cn('text-2xl font-bold tabular-nums', valueColor)}>
-                    {Math.round(displayValue)}
-                  </span>
-                  <span className="text-center text-xs text-muted-foreground">
-                    {displayLabel}
-                  </span>
-                  {isRisk && severityLabel && (
-                    <span className={cn(
-                      'rounded-md border px-1.5 py-0.5 text-[10px] font-semibold',
-                      severityLabel === 'Low'      ? 'border-green-500/30  bg-green-500/10  text-green-400'  :
-                      severityLabel === 'Medium'   ? 'border-yellow-500/30 bg-yellow-500/10 text-yellow-400' :
-                      severityLabel === 'High'     ? 'border-orange-500/30 bg-orange-500/10 text-orange-400' :
-                                                     'border-red-500/30    bg-red-500/10    text-red-400',
-                    )}>
-                      {severityLabel}
-                    </span>
+                  {noFindings && !isRisk ? (
+                    <>
+                      <span className="text-2xl font-bold tabular-nums text-muted-foreground/40">—</span>
+                      <span className="text-center text-xs text-muted-foreground leading-tight">{displayLabel}</span>
+                      <div className="h-1 w-full rounded-full bg-border/40" />
+                    </>
+                  ) : (
+                    <>
+                      <span className={cn('text-2xl font-bold tabular-nums', valueColor)}>
+                        {Math.round(displayValue)}
+                      </span>
+                      <span className="text-center text-xs text-muted-foreground leading-tight">{displayLabel}</span>
+                      {isRisk && severityLabel && (
+                        <span className={cn(
+                          'rounded-md border px-1.5 py-0.5 text-[10px] font-semibold',
+                          severityLabel === 'Low'      ? 'border-green-500/30  bg-green-500/10  text-green-400'  :
+                          severityLabel === 'Medium'   ? 'border-yellow-500/30 bg-yellow-500/10 text-yellow-400' :
+                          severityLabel === 'High'     ? 'border-orange-500/30 bg-orange-500/10 text-orange-400' :
+                                                         'border-red-500/30    bg-red-500/10    text-red-400',
+                        )}>
+                          {severityLabel}
+                        </span>
+                      )}
+                      <ScoreBar score={isRisk ? (100 - displayValue) : score} height="h-1" className="w-full" />
+                    </>
                   )}
-                  <ScoreBar
-                    score={isRisk ? (100 - displayValue) : score}
-                    height="h-1"
-                    className="w-full"
-                  />
                 </CardContent>
               </Card>
             );

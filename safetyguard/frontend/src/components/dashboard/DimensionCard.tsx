@@ -22,11 +22,11 @@ const dimensionMeta: Record<
   Exclude<Dimension, 'redteam'>,
   { icon: LucideIcon; label: string; color: string; bg: string }
 > = {
-  risk:           { icon: AlertTriangle, label: 'Risk',           color: 'text-orange-400', bg: 'bg-orange-500/10' },
+  risk:           { icon: AlertTriangle, label: 'Risk Severity',  color: 'text-orange-400', bg: 'bg-orange-500/10' },
   security:       { icon: Shield,        label: 'Security',       color: 'text-red-400',    bg: 'bg-red-500/10' },
   hallucinations: { icon: Brain,         label: 'Hallucinations', color: 'text-purple-400', bg: 'bg-purple-500/10' },
-  failures:       { icon: Zap,           label: 'Failures',       color: 'text-amber-400',  bg: 'bg-amber-500/10' },
-  cost:           { icon: DollarSign,    label: 'Cost',           color: 'text-emerald-400',bg: 'bg-emerald-500/10' },
+  failures:       { icon: Zap,           label: 'Failure Resilience', color: 'text-amber-400',  bg: 'bg-amber-500/10' },
+  cost:           { icon: DollarSign,    label: 'Cost Efficiency', color: 'text-emerald-400',bg: 'bg-emerald-500/10' },
   privacy:        { icon: Lock,          label: 'Privacy',        color: 'text-violet-400', bg: 'bg-violet-500/10' },
   observability:  { icon: Eye,           label: 'Observability',  color: 'text-cyan-400',   bg: 'bg-cyan-500/10' },
   performance:    { icon: Gauge,         label: 'Performance',    color: 'text-blue-400',   bg: 'bg-blue-500/10' },

@@ -15,11 +15,11 @@ interface FindingCardProps {
 }
 
 const dimensionLabels: Record<string, string> = {
-  risk: 'Risk',
+  risk: 'Risk Severity',
   security: 'Security',
   hallucinations: 'Hallucinations',
-  failures: 'Failures',
-  cost: 'Cost',
+  failures: 'Failure Resilience',
+  cost: 'Cost Efficiency',
   privacy: 'Privacy',
   observability: 'Observability',
   performance: 'Performance',

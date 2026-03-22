@@ -78,11 +78,11 @@ interface AgentDef {
 }
 
 const AGENTS: AgentDef[] = [
-  { key: 'risk', label: 'Risk', description: 'Overall risk assessment', icon: AlertTriangle },
+  { key: 'risk', label: 'Risk Severity', description: 'Overall risk assessment', icon: AlertTriangle },
   { key: 'security', label: 'Security', description: 'Vulnerability scanning', icon: Shield },
   { key: 'hallucinations', label: 'Hallucinations', description: 'LLM hallucination detection', icon: Brain },
-  { key: 'failures', label: 'Failures', description: 'Failure mode analysis', icon: Zap },
-  { key: 'cost', label: 'Cost', description: 'Cost estimation & optimization', icon: DollarSign },
+  { key: 'failures', label: 'Failure Resilience', description: 'Failure mode analysis', icon: Zap },
+  { key: 'cost', label: 'Cost Efficiency', description: 'Cost estimation & optimization', icon: DollarSign },
   { key: 'privacy', label: 'Privacy', description: 'PII & data leak scanning', icon: Lock },
   { key: 'observability', label: 'Observability', description: 'Logging & monitoring checks', icon: Eye },
   { key: 'performance', label: 'Performance', description: 'Latency & throughput analysis', icon: Gauge },
