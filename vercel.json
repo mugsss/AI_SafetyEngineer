@@ -1,15 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "version": 2,
-  "buildCommand": "cd safetyguard/frontend && npm install && npm run build",
-  "outputDirectory": "safetyguard/frontend/.next",
-  "installCommand": "cd safetyguard/frontend && npm install",
   "framework": "nextjs",
-  "regions": ["iad1"],
-  "env": {
-    "JWT_SECRET": "@jwt_secret",
-    "FEATHERLESS_API_KEY": "@featherless_api_key",
-    "FEATHERLESS_API_BASE": "https://api.featherless.ai/v1",
-    "LLM_MODEL": "Qwen/Qwen3-32B"
-  }
+  "rootDirectory": "safetyguard/frontend"
 }

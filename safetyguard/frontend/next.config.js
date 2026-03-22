@@ -3,15 +3,6 @@ const nextConfig = {
   // Enable React strict mode for better development experience
   reactStrictMode: true,
 
-  // Output standalone for optimized production builds
-  output: 'standalone',
-
-  // Environment variables that should be available at build time
-  env: {
-    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000',
-    NEXT_PUBLIC_WS_URL: process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000',
-  },
-
   // Disable x-powered-by header
   poweredByHeader: false,
 
