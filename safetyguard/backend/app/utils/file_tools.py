@@ -1,3 +1,4 @@
+import json
 import os
 import re
 from pathlib import Path
@@ -16,11 +17,24 @@ _OPENNEURO_DATASET_DIR = re.compile(r"^ds\d{6}$")
 _MAX_FILES_IN_LIST_OUTPUT = 500
 
 _repo_root: str = ""
+_active_run_id: str = ""
+_code_graph_cache: dict | None = None
 
 
 def set_repo_root(path: str) -> None:
     global _repo_root
     _repo_root = path
+
+
+def set_run_id(rid: str) -> None:
+    """Bound to the current analysis run (for semantic_code_search)."""
+    global _active_run_id
+    _active_run_id = rid
+
+
+def set_code_graph_for_rag(graph: dict | None) -> None:
+    global _code_graph_cache
+    _code_graph_cache = graph
 
 
 def _safe_path(path: str) -> str:
@@ -92,6 +106,33 @@ def read_file(path: str, max_lines: int = 200) -> str:
     if total > max_lines:
         content += f"\n... ({total - max_lines} more lines truncated)"
     return f"File: {path} ({total} lines)\n{content}"
+
+
+@tool
+def semantic_code_search(query: str) -> str:
+    """Search the indexed repository using embeddings plus import-graph expansion. Returns top code chunks with file paths and line ranges (requires a completed index for this run)."""
+    if not _active_run_id:
+        return "Error: No active analysis run id."
+    from app.services.code_rag_service import retrieve
+
+    r = retrieve(_code_graph_cache, _active_run_id, query.strip(), top_k=8, hop_limit=2)
+    if r.get("error"):
+        return f"Retrieval error: {r['error']}"
+    parts: list[str] = []
+    for c in r.get("chunks") or []:
+        parts.append(
+            f"--- {c.get('file')}:{c.get('start_line')}-{c.get('end_line')} ---\n"
+            f"{(c.get('text') or '')[:3000]}"
+        )
+    if not parts:
+        return "No matching chunks in the index."
+    return json.dumps(
+        {
+            "chunks": parts[:10],
+            "expanded_graph_files": (r.get("expanded_node_ids") or [])[:50],
+        },
+        indent=2,
+    )[:24000]
 
 
 @tool
@@ -445,14 +486,14 @@ ALL_TOOLS = [
 ]
 
 AGENT_TOOL_MAP: dict[str, list] = {
-    "security": [search_code, read_file, read_env_files, find_openapi_spec],
-    "risk": [get_repo_metadata, read_config_files, read_file],
-    "hallucinations": [read_prompt_templates, find_openapi_spec, search_code],
-    "failures": [read_config_files, search_code, read_file],
-    "cost": [read_prompt_templates, search_code, read_file],
-    "privacy": [search_code, read_file],
-    "observability": [read_config_files, search_code, read_file],
-    "performance": [search_code, read_file],
-    "resources": [search_code, read_config_files],
-    "redteam": [read_prompt_templates, search_code, read_file],
+    "security": [search_code, semantic_code_search, read_file, read_env_files, find_openapi_spec],
+    "risk": [get_repo_metadata, read_config_files, read_file, semantic_code_search],
+    "hallucinations": [read_prompt_templates, find_openapi_spec, search_code, semantic_code_search],
+    "failures": [read_config_files, search_code, semantic_code_search, read_file],
+    "cost": [read_prompt_templates, search_code, semantic_code_search, read_file],
+    "privacy": [search_code, semantic_code_search, read_file],
+    "observability": [read_config_files, search_code, semantic_code_search, read_file],
+    "performance": [search_code, semantic_code_search, read_file],
+    "resources": [search_code, read_config_files, semantic_code_search],
+    "redteam": [read_prompt_templates, search_code, semantic_code_search, read_file],
 }

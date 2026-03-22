@@ -9,7 +9,7 @@ import type {
   WorkflowWebhookUpdateInput,
 } from '@/types/api';
 import type { Run, RunListResponse, CreateRunInput } from '@/types/run';
-import type { SafetyReport, DependencyGraph } from '@/types/report';
+import type { SafetyReport, DependencyGraph, CodeGraph } from '@/types/report';
 
 /** Strip trailing slashes so paths like `/api/runs` never become `//api/runs`. */
 const baseURL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000').replace(/\/+$/, '');
@@ -95,6 +95,38 @@ export const reportsApi = {
     const { data } = await client.get<DependencyGraph>(
       `/api/reports/${runId}/dependency-graph`,
       { timeout: 45_000 },
+    );
+    return data;
+  },
+
+  async getCodeGraph(runId: string): Promise<{
+    nodes: CodeGraph['nodes'];
+    edges: CodeGraph['edges'];
+    stats: CodeGraph['stats'];
+    code_index_status: string | null;
+    code_index_error: string | null;
+  }> {
+    const { data } = await client.get(`/api/reports/${runId}/code-graph`, {
+      timeout: 45_000,
+    });
+    return data;
+  },
+
+  async codeRetrieval(
+    runId: string,
+    body: { query: string; top_k?: number; hops?: number },
+  ): Promise<{
+    chunks: Array<Record<string, unknown>>;
+    expanded_node_ids: string[];
+    highlight_edge_ids: string[];
+    subgraph_nodes: CodeGraph['nodes'];
+    subgraph_edges: CodeGraph['edges'];
+    error: string | null;
+  }> {
+    const { data } = await client.post(
+      `/api/reports/${runId}/code-retrieval`,
+      body,
+      { timeout: 60_000 },
     );
     return data;
   },

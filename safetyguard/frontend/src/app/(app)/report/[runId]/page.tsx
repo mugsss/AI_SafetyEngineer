@@ -27,6 +27,7 @@ import { ScoreBar } from '@/components/shared/ScoreBar';
 import { ReportSidebar, type ReportTab } from '@/components/report/ReportSidebar';
 import { DimensionTab } from '@/components/report/DimensionTab';
 import { FindingCard } from '@/components/report/FindingCard';
+import { CodeGraphView } from '@/components/code-graph/CodeGraphView';
 import { cn } from '@/lib/utils';
 import type { Dimension, Finding, Severity, SafetyReport } from '@/types/report';
 
@@ -54,6 +55,7 @@ const dimensionLabels: Record<string, string> = {
 function isValidTab(value: string): value is ReportTab {
   const valid = new Set<string>([
     'overview',
+    'codemap',
     'risk',
     'security',
     'hallucinations',
@@ -703,6 +705,25 @@ function TabContent({
 }) {
   if (activeTab === 'overview') {
     return <OverviewTab report={report} onTabChange={onTabChange} />;
+  }
+
+  if (activeTab === 'codemap') {
+    return (
+      <div className="space-y-4">
+        <div className="space-y-1">
+          <h2 className="text-2xl font-bold text-foreground">Repository code map</h2>
+          <p className="text-sm text-muted-foreground">
+            Import relationships between source files. Use semantic search to highlight retrieval paths used by Graph RAG.
+          </p>
+        </div>
+        <CodeGraphView
+          runId={report.run_id}
+          graph={report.code_graph ?? undefined}
+          codeIndexStatus={report.code_index_status}
+          codeIndexError={report.code_index_error}
+        />
+      </div>
+    );
   }
 
   if (activeTab === 'redteam') {

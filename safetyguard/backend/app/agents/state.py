@@ -33,6 +33,11 @@ class SafetyGuardState(TypedDict, total=False):
     # Dependency graph
     dependency_graph: dict
 
+    # Code graph RAG (import graph + index metadata)
+    code_graph: dict
+    code_index_status: str
+    code_index_error: str | None
+
     # Output
     final_report: dict
     overall_score: float

@@ -1,2 +1,6 @@
 # Local SQLite DB sometimes created at repo root during dev
 /safetyguard.db
+
+# Code graph RAG (Chroma per-run)
+/safetyguard/backend/code_index/
+/safetyguard/backend/vendor/

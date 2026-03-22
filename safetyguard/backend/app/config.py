@@ -62,6 +62,16 @@ class Settings(BaseSettings):
     REPO_EXPLORER_MAX_TURNS: int = 8
     AGENT_MAX_TOOL_ROUNDS: int = 3
 
+    # Code graph RAG: local Chroma persist dir (per-run subfolders)
+    CODE_INDEX_DIR: str = "./code_index"
+    EMBEDDING_MODEL: str = Field(
+        default="text-embedding-3-small",
+        validation_alias=AliasChoices("EMBEDDING_MODEL", "OPENAI_EMBEDDING_MODEL"),
+    )
+    # Max nodes returned in API / full graph cap for storage
+    CODE_GRAPH_MAX_NODES: int = 2500
+    CODE_GRAPH_MAX_EDGES: int = 8000
+
     @property
     def is_mock_mode(self) -> bool:
         return not self.FEATHERLESS_API_KEY or self.FEATHERLESS_API_KEY == "mock"
@@ -75,6 +85,14 @@ class Settings(BaseSettings):
             "api_key": self.FEATHERLESS_API_KEY,
             "max_retries": 3,
             "request_timeout": 90,
+        }
+
+    def get_embedding_request(self) -> dict:
+        """OpenAI-compatible embeddings API (same base URL/key as LLM by default)."""
+        return {
+            "base_url": self.FEATHERLESS_API_BASE.rstrip("/"),
+            "api_key": self.FEATHERLESS_API_KEY,
+            "model": self.EMBEDDING_MODEL,
         }
 
 

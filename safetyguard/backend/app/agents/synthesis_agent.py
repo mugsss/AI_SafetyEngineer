@@ -290,6 +290,9 @@ async def synthesis_agent(state: SafetyGuardState) -> dict:
         "findings": all_findings,
         "dependency_graph": dep_graph,
         "recommendations": recommendations,
+        "code_graph": state.get("code_graph"),
+        "code_index_status": state.get("code_index_status"),
+        "code_index_error": state.get("code_index_error"),
     }
 
     return {

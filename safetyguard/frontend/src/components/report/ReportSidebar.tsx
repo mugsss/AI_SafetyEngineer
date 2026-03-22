@@ -13,6 +13,7 @@ import {
   Server,
   Swords,
   Wrench,
+  Network,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -21,6 +22,7 @@ import type { Dimension } from '@/types/report';
 
 export type ReportTab =
   | 'overview'
+  | 'codemap'
   | Dimension
   | 'fixes';
 
@@ -33,6 +35,7 @@ interface TabDefinition {
 
 const tabs: TabDefinition[] = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+  { id: 'codemap', label: 'Code map', icon: Network },
   { id: 'risk', label: 'Risk Severity', icon: AlertTriangle, dimension: 'risk' },
   { id: 'security', label: 'Security', icon: Shield, dimension: 'security' },
   { id: 'hallucinations', label: 'Hallucinations', icon: Brain, dimension: 'hallucinations' },

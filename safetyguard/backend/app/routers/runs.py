@@ -150,6 +150,9 @@ def delete_run(
     )
     if not run:
         raise HTTPException(status_code=404, detail="Run not found")
+    from app.services.code_index_service import cleanup_code_index
+
+    cleanup_code_index(run_id)
     db.query(SafetyReport).filter(SafetyReport.run_id == run_id).delete()
     db.delete(run)
     db.commit()

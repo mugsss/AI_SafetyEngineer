@@ -6,7 +6,12 @@ from app.database import get_db
 from app.models.report import SafetyReport
 from app.models.run import AnalysisRun
 from app.models.user import User
-from app.schemas.report import ReportResponse, DependencyGraphResponse
+from app.schemas.report import (
+    ReportResponse,
+    DependencyGraphResponse,
+    CodeRetrievalRequest,
+    CodeRetrievalResponse,
+)
 from app.dependencies import get_current_user
 
 router = APIRouter()
@@ -37,6 +42,9 @@ def get_report(
         dimension_scores=report.dimension_scores,
         findings=report.findings,
         dependency_graph=report.dependency_graph,
+        code_graph=report.code_graph,
+        code_index_status=report.code_index_status,
+        code_index_error=report.code_index_error,
         executive_summary=report.executive_summary,
         created_at=report.created_at.isoformat(),
     )
@@ -63,6 +71,74 @@ def get_dependency_graph(
     return DependencyGraphResponse(
         nodes=report.dependency_graph.get("nodes", []),
         edges=report.dependency_graph.get("edges", []),
+    )
+
+
+@router.get("/{run_id}/code-graph")
+def get_code_graph(
+    run_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    run = (
+        db.query(AnalysisRun)
+        .filter(AnalysisRun.id == run_id, AnalysisRun.user_id == current_user.id)
+        .first()
+    )
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    report = db.query(SafetyReport).filter(SafetyReport.run_id == run_id).first()
+    if not report or not report.code_graph:
+        raise HTTPException(status_code=404, detail="Code graph not found")
+
+    cg = report.code_graph
+    if not isinstance(cg, dict):
+        raise HTTPException(status_code=404, detail="Code graph not found")
+    return {
+        "nodes": cg.get("nodes", []),
+        "edges": cg.get("edges", []),
+        "stats": cg.get("stats", {}),
+        "code_index_status": report.code_index_status,
+        "code_index_error": report.code_index_error,
+    }
+
+
+@router.post("/{run_id}/code-retrieval", response_model=CodeRetrievalResponse)
+def post_code_retrieval(
+    run_id: str,
+    body: CodeRetrievalRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    run = (
+        db.query(AnalysisRun)
+        .filter(AnalysisRun.id == run_id, AnalysisRun.user_id == current_user.id)
+        .first()
+    )
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    report = db.query(SafetyReport).filter(SafetyReport.run_id == run_id).first()
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+
+    from app.services.code_rag_service import retrieve
+
+    r = retrieve(
+        report.code_graph,
+        run_id,
+        body.query,
+        top_k=body.top_k,
+        hop_limit=body.hops,
+    )
+    return CodeRetrievalResponse(
+        chunks=r.get("chunks") or [],
+        expanded_node_ids=r.get("expanded_node_ids") or [],
+        highlight_edge_ids=r.get("highlight_edge_ids") or [],
+        subgraph_nodes=r.get("subgraph_nodes") or [],
+        subgraph_edges=r.get("subgraph_edges") or [],
+        error=r.get("error"),
     )
 
 
