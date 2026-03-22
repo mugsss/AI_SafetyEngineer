@@ -1,10 +1,18 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowUpRight, ArrowDownRight, Plus, Rocket } from 'lucide-react';
-import { runsApi, reportsApi } from '@/lib/api';
+import {
+  ArrowUpRight,
+  ArrowDownRight,
+  Plus,
+  Rocket,
+  ExternalLink,
+  LayoutGrid,
+  Workflow,
+} from 'lucide-react';
+import { runsApi, reportsApi, settingsApi, miroApi } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
@@ -25,6 +33,16 @@ const DASHBOARD_DIMENSIONS: Exclude<Dimension, 'redteam'>[] = [
   'performance',
   'resources',
 ];
+
+function toOrigin(url?: string | null): string | null {
+  const t = (url || '').trim();
+  if (!t) return null;
+  try {
+    return new URL(t).origin;
+  } catch {
+    return t.replace(/\/$/, '');
+  }
+}
 
 function relativeTime(dateStr: string): string {
   const now = Date.now();
@@ -88,6 +106,106 @@ function EmptyState() {
   );
 }
 
+function MiroWorkflowButton({ runId }: { runId: string }) {
+  const [loading, setLoading] = useState(false);
+  const [boardUrl, setBoardUrl] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleClick = async () => {
+    if (boardUrl) {
+      window.open(boardUrl, '_blank', 'noopener');
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await miroApi.createBoard(runId);
+      setBoardUrl(result.board_url);
+      window.open(result.board_url, '_blank', 'noopener');
+    } catch (e: any) {
+      const msg =
+        e?.response?.data?.detail || e?.message || 'Failed to create Miro workflow';
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-2">
+      {error && (
+        <span className="max-w-[220px] truncate text-xs text-red-400" title={error}>
+          {error.length > 34 ? `${error.slice(0, 34)}...` : error}
+        </span>
+      )}
+      <Button variant="outline" onClick={handleClick} disabled={loading}>
+        {loading ? (
+          <>
+            <Rocket className="mr-2 h-4 w-4 animate-pulse" />
+            Creating Miro workflow...
+          </>
+        ) : (
+          <>
+            <LayoutGrid className="mr-2 h-4 w-4" />
+            {boardUrl ? 'Open Miro workflow' : 'Create Miro workflow'}
+          </>
+        )}
+      </Button>
+    </div>
+  );
+}
+
+function N8nTriggerButton({ runId }: { runId?: string }) {
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleTrigger = async () => {
+    setLoading(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const result = await settingsApi.workflowWebhooks.trigger(runId);
+      if (result.success) setMessage(result.message);
+      else setError(result.message);
+    } catch (e: any) {
+      const msg =
+        e?.response?.data?.detail || e?.message || 'Failed to trigger n8n workflow';
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-2">
+      {error && (
+        <span className="max-w-[220px] truncate text-xs text-red-400" title={error}>
+          {error.length > 34 ? `${error.slice(0, 34)}...` : error}
+        </span>
+      )}
+      {message && (
+        <span className="max-w-[220px] truncate text-xs text-green-400" title={message}>
+          {message}
+        </span>
+      )}
+      <Button variant="outline" onClick={handleTrigger} disabled={loading}>
+        {loading ? (
+          <>
+            <Workflow className="mr-2 h-4 w-4 animate-pulse" />
+            Triggering...
+          </>
+        ) : (
+          <>
+            <Workflow className="mr-2 h-4 w-4" />
+            Trigger n8n workflow
+          </>
+        )}
+      </Button>
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const {
     data: runList,
@@ -110,6 +228,10 @@ export default function DashboardPage() {
     queryFn: () => reportsApi.get(latestCompletedRun!.id),
     enabled: !!latestCompletedRun,
   });
+  const { data: appSettings } = useQuery({
+    queryKey: ['settings'],
+    queryFn: settingsApi.get,
+  });
 
   const sparklineData = useMemo(() => {
     if (!runList?.runs) return [];
@@ -128,6 +250,13 @@ export default function DashboardPage() {
 
   const currentScore = report?.overall_score ?? 0;
   const scoreDiff = previousScore !== null ? currentScore - previousScore : null;
+  const n8nOrigin = useMemo(() => {
+    return (
+      toOrigin(appSettings?.n8n_base_url) ||
+      toOrigin(process.env.NEXT_PUBLIC_N8N_APP_URL) ||
+      null
+    );
+  }, [appSettings?.n8n_base_url]);
 
   const isLoading = runsLoading || (!!latestCompletedRun && reportLoading);
   const hasNoRuns = !runsLoading && (!runList?.runs?.length);
@@ -166,6 +295,68 @@ export default function DashboardPage() {
             )}
           </div>
         )}
+      </section>
+
+      <Separator />
+
+      {/* Integrations Quick Actions */}
+      <section>
+        <h2 className="mb-4 text-lg font-semibold text-foreground">
+          Integrations
+        </h2>
+        <div className="flex flex-wrap gap-3">
+          {latestCompletedRun ? (
+            <>
+              <MiroWorkflowButton runId={latestCompletedRun.id} />
+              <Button variant="secondary" asChild>
+                <a
+                  href="https://miro.com/app/dashboard/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                  Miro dashboard
+                </a>
+              </Button>
+            </>
+          ) : (
+            <Button variant="outline" asChild>
+              <Link href="/runs">
+                <LayoutGrid className="mr-2 h-4 w-4" />
+                Run analysis to enable Miro
+              </Link>
+            </Button>
+          )}
+
+          {n8nOrigin ? (
+            <>
+              <N8nTriggerButton runId={latestCompletedRun?.id} />
+              <Button variant="outline" asChild>
+                <a href={n8nOrigin} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                  Open n8n
+                </a>
+              </Button>
+              <Button variant="secondary" asChild>
+                <a
+                  href={`${n8nOrigin}/executions`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <Workflow className="mr-2 h-4 w-4" />
+                  n8n executions
+                </a>
+              </Button>
+            </>
+          ) : (
+            <Button variant="outline" asChild>
+              <Link href="/settings">
+                <Workflow className="mr-2 h-4 w-4" />
+                Configure n8n URL
+              </Link>
+            </Button>
+          )}
+        </div>
       </section>
 
       <Separator />

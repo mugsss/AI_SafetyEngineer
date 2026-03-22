@@ -1,9 +1,13 @@
 import axios, { AxiosInstance } from 'axios';
-import { getToken, clearToken } from './auth';
-import type { AuthResponse, RegisterInput, User } from '@/types/api';
 import type { SimulateInput, SimulationResult } from '@/types/api';
 import type { PlaygroundInput, PlaygroundResult } from '@/types/api';
-import type { AppSettings, UploadResponse } from '@/types/api';
+import type {
+  AppSettings,
+  UploadResponse,
+  WorkflowWebhook,
+  WorkflowWebhookCreateInput,
+  WorkflowWebhookUpdateInput,
+} from '@/types/api';
 import type { Run, RunListResponse, CreateRunInput } from '@/types/run';
 import type { SafetyReport, DependencyGraph } from '@/types/report';
 
@@ -13,49 +17,6 @@ const client: AxiosInstance = axios.create({
   baseURL,
   headers: { 'Content-Type': 'application/json' },
 });
-
-client.interceptors.request.use((config) => {
-  const token = getToken();
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-
-client.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      clearToken();
-      if (typeof window !== 'undefined') {
-        window.location.href = '/login';
-      }
-    }
-    return Promise.reject(error);
-  },
-);
-
-export const authApi = {
-  async login(email: string, password: string): Promise<AuthResponse> {
-    const form = new URLSearchParams();
-    form.append('username', email);
-    form.append('password', password);
-    const { data } = await client.post<AuthResponse>('/api/auth/login', form, {
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    });
-    return data;
-  },
-
-  async register(input: RegisterInput): Promise<AuthResponse> {
-    const { data } = await client.post<AuthResponse>('/api/auth/register', input);
-    return data;
-  },
-
-  async me(): Promise<User> {
-    const { data } = await client.get<User>('/api/auth/me');
-    return data;
-  },
-};
 
 export const runsApi = {
   async create(input: CreateRunInput): Promise<Run> {
@@ -122,6 +83,17 @@ export const settingsApi = {
     return data;
   },
 
+  async testN8nApi(overrides?: {
+    n8n_base_url?: string;
+    n8n_api_key?: string;
+  }): Promise<{ success: boolean; message: string }> {
+    const { data } = await client.post<{ success: boolean; message: string }>(
+      '/api/settings/n8n-api-test',
+      overrides ?? {},
+    );
+    return data;
+  },
+
   async testApiKey(
     provider: string,
     apiKey: string,
@@ -131,6 +103,58 @@ export const settingsApi = {
       { provider, key: apiKey },
     );
     return { valid: data.success, error: data.success ? undefined : data.message };
+  },
+
+  workflowWebhooks: {
+    async list(): Promise<WorkflowWebhook[]> {
+      const { data } = await client.get<WorkflowWebhook[]>(
+        '/api/settings/workflow-webhooks',
+      );
+      return data;
+    },
+    async create(body: WorkflowWebhookCreateInput): Promise<WorkflowWebhook> {
+      const { data } = await client.post<WorkflowWebhook>(
+        '/api/settings/workflow-webhooks',
+        body,
+      );
+      return data;
+    },
+    async update(
+      id: string,
+      body: WorkflowWebhookUpdateInput,
+    ): Promise<WorkflowWebhook> {
+      const { data } = await client.put<WorkflowWebhook>(
+        `/api/settings/workflow-webhooks/${id}`,
+        body,
+      );
+      return data;
+    },
+    async remove(id: string): Promise<void> {
+      await client.delete(`/api/settings/workflow-webhooks/${id}`);
+    },
+    async test(url: string, secret?: string): Promise<{ success: boolean; message: string }> {
+      const { data } = await client.post<{ success: boolean; message: string }>(
+        '/api/settings/workflow-webhooks/test',
+        { url, secret: secret || undefined },
+      );
+      return data;
+    },
+    async trigger(runId?: string): Promise<{ success: boolean; message: string }> {
+      const { data } = await client.post<{ success: boolean; message: string }>(
+        '/api/settings/workflow-webhooks/trigger',
+        runId ? { run_id: runId } : {},
+      );
+      return data;
+    },
+  },
+};
+
+export const miroApi = {
+  async createBoard(runId: string): Promise<{ board_id: string; board_url: string }> {
+    const { data } = await client.post<{ board_id: string; board_url: string }>(
+      `/api/reports/${runId}/miro-board`,
+    );
+    return data;
   },
 };
 

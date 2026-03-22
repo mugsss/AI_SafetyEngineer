@@ -1,14 +1,12 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { getToken } from '@/lib/auth';
 import type { RunStatus } from '@/types/run';
 
-interface RunStatusEvent {
-  run_id: string;
+interface StatusPayload {
   status: RunStatus;
   progress?: number;
-  message?: string;
+  current_agent?: string;
 }
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
@@ -29,19 +27,20 @@ export function useRunStatus(runId: string | undefined) {
   useEffect(() => {
     if (!runId) return;
 
-    const token = getToken();
-    const url = `${API_URL}/api/runs/${runId}/status?token=${encodeURIComponent(token ?? '')}`;
-
+    const url = `${API_URL}/api/runs/${runId}/status`;
     const es = new EventSource(url);
     eventSourceRef.current = es;
 
-    es.onmessage = (event) => {
+    const onStatus = (event: MessageEvent) => {
       try {
-        const data: RunStatusEvent = JSON.parse(event.data);
-        setStatus(data.status);
+        const data = JSON.parse(event.data) as StatusPayload;
+        if (data.status) setStatus(data.status);
         if (data.progress !== undefined) setProgress(data.progress);
-        if (data.message !== undefined) setMessage(data.message);
-
+        const hint =
+          data.current_agent && data.current_agent !== 'done'
+            ? data.current_agent
+            : '';
+        setMessage(hint || '');
         if (data.status === 'completed' || data.status === 'failed') {
           es.close();
         }
@@ -50,11 +49,29 @@ export function useRunStatus(runId: string | undefined) {
       }
     };
 
+    const onServerErrorEvent = (event: Event) => {
+      if (!('data' in event) || typeof (event as MessageEvent).data !== 'string') {
+        return;
+      }
+      try {
+        const err = JSON.parse((event as MessageEvent).data) as {
+          error?: string;
+        };
+        if (err?.error) setMessage(err.error);
+      } catch {
+        // ignore
+      }
+    };
+
+    es.addEventListener('status', onStatus);
+    es.addEventListener('error', onServerErrorEvent);
     es.onerror = () => {
       es.close();
     };
 
     return () => {
+      es.removeEventListener('status', onStatus);
+      es.removeEventListener('error', onServerErrorEvent);
       es.close();
       eventSourceRef.current = null;
     };

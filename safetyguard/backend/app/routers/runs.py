@@ -55,13 +55,7 @@ def create_run(
     db.commit()
     db.refresh(run)
 
-    from app.config import settings
-    if settings.is_mock_mode:
-        _run_mock_analysis(run.id, db)
-        db.refresh(run)
-    else:
-        _dispatch_analysis(run.id)
-
+    _dispatch_analysis(run.id)
     return _run_to_response(run)
 
 
@@ -198,64 +192,3 @@ def _get_current_agent(run: AnalysisRun) -> str:
     return "analyzing"
 
 
-def _run_mock_analysis(run_id: str, db: Session) -> None:
-    from app.models.report import SafetyReport
-    from app.utils.mock_data import get_mock_findings, get_mock_dependency_graph
-    from app.utils.scoring import compute_dimension_scores, compute_overall_score
-
-    run = db.query(AnalysisRun).filter(AnalysisRun.id == run_id).first()
-    if not run:
-        return
-
-    run.status = "running"
-    run.started_at = datetime.utcnow()
-    db.commit()
-
-    mock_findings = get_mock_findings()
-    mock_graph = get_mock_dependency_graph()
-
-    all_findings = {}
-    severity_order = ["critical", "high", "medium", "low", "info"]
-    for dim_name, findings in mock_findings.items():
-        enabled = (run.enabled_agents or {}).get(dim_name, False)
-        dim_findings = findings if enabled else []
-        worst = "info"
-        for f in dim_findings:
-            sev = f.get("severity", "info")
-            if severity_order.index(sev) < severity_order.index(worst):
-                worst = sev
-        all_findings[dim_name] = {
-            "findings": dim_findings,
-            "finding_count": len(dim_findings),
-            "worst_severity": worst,
-            "summary": f"{len(dim_findings)} {dim_name} issues found." if dim_findings else f"No {dim_name} issues found.",
-        }
-
-    dimension_scores = compute_dimension_scores(all_findings)
-    overall_score = compute_overall_score(dimension_scores)
-
-    for dim_name in all_findings:
-        all_findings[dim_name]["score"] = dimension_scores.get(dim_name, 100)
-
-    executive_summary = (
-        f"SafetyGuard analysis complete. Overall safety score: {overall_score}/100. "
-        f"Key areas of concern: "
-        + ", ".join(
-            f"{d} ({s:.0f})"
-            for d, s in sorted(dimension_scores.items(), key=lambda x: x[1])[:3]
-        )
-        + "."
-    )
-
-    report = SafetyReport(
-        run_id=run_id,
-        overall_score=overall_score,
-        dimension_scores=dimension_scores,
-        findings=all_findings,
-        dependency_graph=mock_graph,
-        executive_summary=executive_summary,
-    )
-    db.add(report)
-    run.status = "completed"
-    run.finished_at = datetime.utcnow()
-    db.commit()

@@ -19,12 +19,18 @@ def _make_work_dir() -> str:
 
 def clone_repo(repo_url: str, branch: str = "main") -> str:
     work_dir = _make_work_dir()
-    clone_env = {**os.environ, "GIT_TEMPLATE_DIR": ""}
+    # Skip Git LFS smudge so large dataset blobs do not block or fill disk during clone
+    clone_env = {
+        **os.environ,
+        "GIT_TEMPLATE_DIR": "",
+        "GIT_LFS_SKIP_SMUDGE": "1",
+    }
     try:
         Repo.clone_from(repo_url, work_dir, branch=branch, depth=1, env=clone_env)
     except Exception:
         shutil.rmtree(work_dir, ignore_errors=True)
         work_dir = _make_work_dir()
+        # Default branch (often main/master) when named branch is missing or wrong
         Repo.clone_from(repo_url, work_dir, depth=1, env=clone_env)
     return work_dir
 

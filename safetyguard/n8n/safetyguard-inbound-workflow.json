@@ -1,0 +1,65 @@
+{
+  "name": "SafetyGuard — Inbound events",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "safetyguard-events",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "sg-webhook-001",
+      "name": "SafetyGuard Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "sg-webhook-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "// SafetyGuard sends JSON body: event, run_id, status, source, links, ...\nconst j = $input.first().json;\nconst body = j.body !== undefined ? j.body : j;\nreturn [{\n  json: {\n    event: body.event,\n    run_id: body.run_id,\n    status: body.status,\n    source: body.source,\n    overall_score: body.overall_score,\n    links: body.links,\n    executive_summary: body.executive_summary,\n    raw: body\n  }\n}];"
+      },
+      "id": "sg-code-002",
+      "name": "Extract payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {},
+      "id": "sg-noop-003",
+      "name": "Done",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [680, 300]
+    }
+  ],
+  "connections": {
+    "SafetyGuard Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extract payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract payload": {
+      "main": [
+        [
+          {
+            "node": "Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {}
+}

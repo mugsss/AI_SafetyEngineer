@@ -7,13 +7,16 @@ logger = logging.getLogger(__name__)
 
 
 def execute_analysis(run_id: str) -> dict:
-    """Core analysis logic -- runs independently of Celery."""
+    """Core analysis logic -- runs independently of Celery.
+
+    Always uses the full LangGraph pipeline. In mock mode the agents perform
+    static analysis only (no LLM calls), so this is fast and still produces
+    real findings based on the actual repository code.
+    """
     from app.database import SessionLocal
     from app.models.run import AnalysisRun
     from app.models.report import SafetyReport
     from app.services.repo_service import clone_repo, extract_upload, cleanup_repo
-    from app.utils.mock_data import get_mock_findings, get_mock_dependency_graph
-    from app.utils.scoring import compute_dimension_scores, compute_overall_score
 
     db = SessionLocal()
     repo_path = None
@@ -27,60 +30,6 @@ def execute_analysis(run_id: str) -> dict:
         run.status = "running"
         run.started_at = datetime.utcnow()
         db.commit()
-
-        if settings.is_mock_mode:
-            mock_findings = get_mock_findings()
-            mock_graph = get_mock_dependency_graph()
-
-            all_findings = {}
-            for dim_name, findings in mock_findings.items():
-                enabled = run.enabled_agents.get(dim_name, False)
-                dim_findings = findings if enabled else []
-                worst = "info"
-                severity_order = ["critical", "high", "medium", "low", "info"]
-                for f in dim_findings:
-                    sev = f.get("severity", "info")
-                    if severity_order.index(sev) < severity_order.index(worst):
-                        worst = sev
-                all_findings[dim_name] = {
-                    "findings": dim_findings,
-                    "finding_count": len(dim_findings),
-                    "worst_severity": worst,
-                    "score": 100,
-                    "summary": f"{'No' if not dim_findings else len(dim_findings)} {dim_name} issues found.",
-                }
-
-            dimension_scores = compute_dimension_scores(all_findings)
-            overall_score = compute_overall_score(dimension_scores)
-
-            for dim_name in all_findings:
-                all_findings[dim_name]["score"] = dimension_scores.get(dim_name, 100)
-
-            executive_summary = (
-                f"SafetyGuard analysis complete. Overall safety score: {overall_score}/100. "
-                f"Found issues across multiple dimensions. "
-                f"Key areas of concern: "
-                + ", ".join(
-                    f"{d} ({s:.0f})"
-                    for d, s in sorted(dimension_scores.items(), key=lambda x: x[1])[:3]
-                )
-                + "."
-            )
-
-            report = SafetyReport(
-                run_id=run_id,
-                overall_score=overall_score,
-                dimension_scores=dimension_scores,
-                findings=all_findings,
-                dependency_graph=mock_graph,
-                executive_summary=executive_summary,
-            )
-            db.add(report)
-            run.status = "completed"
-            run.finished_at = datetime.utcnow()
-            db.commit()
-
-            return {"status": "completed", "overall_score": overall_score}
 
         if run.repo_url:
             repo_path = clone_repo(run.repo_url, run.branch)
@@ -121,6 +70,26 @@ def execute_analysis(run_id: str) -> dict:
         run.finished_at = datetime.utcnow()
         db.commit()
 
+        from app.utils.n8n_webhook import emit_workflow_event
+
+        base = (settings.FRONTEND_BASE_URL or "").rstrip("/")
+        emit_workflow_event(
+            "analysis.completed",
+            run_id=run_id,
+            status="completed",
+            user_id=run.user_id,
+            extra={
+                "repo_url": run.repo_url or "",
+                "branch": run.branch or "",
+                "overall_score": final_report.get("overall_score"),
+                "dimension_scores": final_report.get("dimension_scores") or {},
+                "executive_summary": (final_report.get("executive_summary") or "")[:2000],
+                "links": {
+                    "report": f"{base}/report/{run_id}" if base else f"/report/{run_id}",
+                },
+            },
+        )
+
         return {"status": "completed", "overall_score": final_report.get("overall_score", 0)}
 
     except Exception as e:
@@ -132,6 +101,22 @@ def execute_analysis(run_id: str) -> dict:
                 run.error_message = str(e)[:2000]
                 run.finished_at = datetime.utcnow()
                 db.commit()
+                from app.utils.n8n_webhook import emit_workflow_event
+
+                base = (settings.FRONTEND_BASE_URL or "").rstrip("/")
+                emit_workflow_event(
+                    "analysis.failed",
+                    run_id=run_id,
+                    status="failed",
+                    user_id=run.user_id,
+                    extra={
+                        "repo_url": run.repo_url or "",
+                        "error_message": str(e)[:2000],
+                        "links": {
+                            "report": f"{base}/report/{run_id}" if base else f"/report/{run_id}",
+                        },
+                    },
+                )
         except Exception:
             pass
         return {"error": str(e)}

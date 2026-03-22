@@ -1,15 +1,4 @@
-from pydantic import BaseModel, EmailStr
-
-
-class UserRegister(BaseModel):
-    email: EmailStr
-    password: str
-    full_name: str
-
-
-class UserLogin(BaseModel):
-    email: EmailStr
-    password: str
+from pydantic import BaseModel
 
 
 class UserResponse(BaseModel):
@@ -20,9 +9,3 @@ class UserResponse(BaseModel):
     created_at: str
 
     model_config = {"from_attributes": True}
-
-
-class AuthResponse(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
-    user: UserResponse

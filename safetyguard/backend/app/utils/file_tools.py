@@ -10,6 +10,10 @@ EXCLUDED_DIRS = {
     "htmlcov", ".mypy_cache", ".pytest_cache",
 }
 EXCLUDED_EXTENSIONS = {".lock", ".pyc", ".pyo", ".so", ".dylib", ".whl", ".egg"}
+# OpenNeuro / BIDS datasets (e.g. ds003846) — huge file trees; skip for code analysis
+_OPENNEURO_DATASET_DIR = re.compile(r"^ds\d{6}$")
+# Cap listing walk so very large repos remain responsive
+_MAX_FILES_IN_LIST_OUTPUT = 500
 
 _repo_root: str = ""
 
@@ -28,7 +32,11 @@ def _safe_path(path: str) -> str:
 
 def _should_skip(name: str, is_dir: bool) -> bool:
     if is_dir:
-        return name in EXCLUDED_DIRS
+        if name in EXCLUDED_DIRS:
+            return True
+        if _OPENNEURO_DATASET_DIR.match(name):
+            return True
+        return False
     _, ext = os.path.splitext(name)
     return ext in EXCLUDED_EXTENSIONS
 
@@ -40,18 +48,30 @@ def list_files(path: str = "") -> str:
     if not os.path.isdir(target):
         return f"Error: '{path}' is not a directory"
 
-    files = []
+    files: list[str] = []
+    truncated = False
     for root, dirs, filenames in os.walk(target):
+        if len(files) >= _MAX_FILES_IN_LIST_OUTPUT:
+            truncated = True
+            break
         dirs[:] = [d for d in dirs if not _should_skip(d, True)]
         rel_root = os.path.relpath(root, _repo_root)
         for f in sorted(filenames):
+            if len(files) >= _MAX_FILES_IN_LIST_OUTPUT:
+                truncated = True
+                break
             if not _should_skip(f, False):
                 rel_path = os.path.join(rel_root, f) if rel_root != "." else f
                 files.append(rel_path)
+        if truncated:
+            break
 
     if not files:
         return "No files found."
-    return "\n".join(files[:500])
+    out = "\n".join(files)
+    if truncated or len(files) >= _MAX_FILES_IN_LIST_OUTPUT:
+        out += "\n... (listing capped; large data dirs like OpenNeuro ds###### are skipped)"
+    return out
 
 
 @tool

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -11,10 +11,11 @@ import {
   EyeOff,
   CheckCircle2,
   XCircle,
-  Copy,
-  RefreshCw,
   Settings,
+  ExternalLink,
+  LayoutGrid,
 } from 'lucide-react';
+import Link from 'next/link';
 import { settingsApi } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,13 +29,23 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { cn } from '@/lib/utils';
 import type { AppSettings } from '@/types/api';
+import { WorkflowWebhooksPanel } from '@/components/settings/WorkflowWebhooksPanel';
+
+function n8nOriginFromInput(saved?: string | null, draft?: string): string | null {
+  const t = (draft || saved || '').trim();
+  if (!t) return null;
+  try {
+    return new URL(t).origin;
+  } catch {
+    return t.replace(/\/$/, '');
+  }
+}
 
 const settingsSchema = z.object({
   featherless_api_key: z.string().optional(),
-  webhook_url: z.string().optional(),
-  webhook_secret: z.string().optional(),
+  n8n_base_url: z.string().optional(),
+  n8n_api_key: z.string().optional(),
   fail_ci_on_critical: z.boolean(),
   notification_email: z.string().email().optional().or(z.literal('')),
   slack_webhook_url: z.string().optional(),
@@ -126,7 +137,8 @@ const ciSnippet = `- name: SafetyGuard Analysis
 
 export default function SettingsPage() {
   const queryClient = useQueryClient();
-  const [copied, setCopied] = useState(false);
+  const [n8nTestStatus, setN8nTestStatus] = useState<KeyTestStatus>('idle');
+  const [n8nTestError, setN8nTestError] = useState('');
 
   const { data: settings, isLoading } = useQuery({
     queryKey: ['settings'],
@@ -137,8 +149,8 @@ export default function SettingsPage() {
     resolver: zodResolver(settingsSchema),
     defaultValues: {
       featherless_api_key: '',
-      webhook_url: '',
-      webhook_secret: '',
+      n8n_base_url: '',
+      n8n_api_key: '',
       fail_ci_on_critical: true,
       notification_email: '',
       slack_webhook_url: '',
@@ -153,8 +165,8 @@ export default function SettingsPage() {
     if (settings) {
       reset({
         featherless_api_key: settings.featherless_api_key ?? '',
-        webhook_url: settings.webhook_url ?? '',
-        webhook_secret: settings.webhook_secret ?? '',
+        n8n_base_url: settings.n8n_base_url ?? '',
+        n8n_api_key: '',
         fail_ci_on_critical: settings.fail_ci_on_critical,
         notification_email: settings.notification_email ?? '',
         slack_webhook_url: settings.slack_webhook_url ?? '',
@@ -176,23 +188,40 @@ export default function SettingsPage() {
   const onSubmit = (data: SettingsFormData) => {
     const payload: Partial<AppSettings> = { ...data };
     if (!payload.notification_email) delete payload.notification_email;
+    if (settings?.n8n_api_key_set && !data.n8n_api_key?.trim()) {
+      delete payload.n8n_api_key;
+    }
     updateMutation.mutate(payload);
+  };
+
+  const handleN8nApiTest = async () => {
+    const base = watch('n8n_base_url') ?? '';
+    const key = watch('n8n_api_key') ?? '';
+    setN8nTestStatus('testing');
+    setN8nTestError('');
+    try {
+      const result = await settingsApi.testN8nApi({
+        n8n_base_url: base.trim() || undefined,
+        n8n_api_key: key.trim() || undefined,
+      });
+      setN8nTestStatus(result.success ? 'success' : 'error');
+      if (!result.success) setN8nTestError(result.message);
+    } catch (e) {
+      setN8nTestStatus('error');
+      setN8nTestError(e instanceof Error ? e.message : 'Request failed');
+    }
   };
 
   const watchNotifyScoreDrop = watch('notify_on_score_drop');
   const watchFeatherless = watch('featherless_api_key') ?? '';
-  const watchWebhookUrl = watch('webhook_url') ?? '';
+  const watchN8nBase = watch('n8n_base_url') ?? '';
+  const n8nQuickOrigin = useMemo(
+    () => n8nOriginFromInput(settings?.n8n_base_url, watchN8nBase),
+    [settings?.n8n_base_url, watchN8nBase],
+  );
   const watchFailCi = watch('fail_ci_on_critical');
   const watchNotifyCompletion = watch('notify_on_completion');
   const watchNotifyCritical = watch('notify_on_critical');
-
-  const handleCopyWebhook = async () => {
-    if (watchWebhookUrl) {
-      await navigator.clipboard.writeText(watchWebhookUrl);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
-  };
 
   if (isLoading) {
     return (
@@ -231,53 +260,131 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
+        {/* Miro — action lives on Report page; token is server-side MIRO_ACCESS_TOKEN */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <LayoutGrid className="h-5 w-5 text-primary" />
+              <CardTitle className="text-lg">Miro</CardTitle>
+            </div>
+            <CardDescription>
+              Boards are created from each run&apos;s <strong>Report</strong> page (top bar: <strong>View in Miro</strong>).
+              The backend must have <code className="rounded bg-muted px-1 text-xs">MIRO_ACCESS_TOKEN</code> set in{' '}
+              <code className="rounded bg-muted px-1 text-xs">.env</code>.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" size="sm" asChild>
+              <Link href="/runs">
+                Go to runs / open a report
+              </Link>
+            </Button>
+            <Button type="button" variant="secondary" size="sm" asChild>
+              <a href="https://miro.com/app/dashboard/" target="_blank" rel="noopener noreferrer">
+                <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
+                Miro dashboard
+              </a>
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* n8n Public API (REST) — separate from Webhook node URLs below */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">n8n Public API</CardTitle>
+            <CardDescription>
+              Use your <strong>instance URL</strong> (workspace root) and key from n8n{' '}
+              <strong>Settings → n8n API</strong>. This verifies access via{' '}
+              <code className="rounded bg-muted px-1 text-xs">GET /api/v1/workflows</code> — not the same as a
+              Webhook URL used for run events.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="n8n_base_url">n8n instance URL</Label>
+              <Input
+                id="n8n_base_url"
+                {...register('n8n_base_url')}
+                placeholder="https://yourname.app.n8n.cloud"
+                className="font-mono text-sm"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="n8n_api_key">n8n API key</Label>
+              <Input
+                id="n8n_api_key"
+                type="password"
+                autoComplete="off"
+                {...register('n8n_api_key')}
+                placeholder={
+                  settings?.n8n_api_key_set
+                    ? 'Key saved — enter new to replace, or leave blank'
+                    : 'Paste key from n8n (Settings → n8n API)'
+                }
+              />
+              {settings?.n8n_api_key_set && (
+                <p className="text-xs text-muted-foreground">A key is already stored on the server.</p>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleN8nApiTest}
+                disabled={n8nTestStatus === 'testing'}
+              >
+                {n8nTestStatus === 'testing' && (
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                )}
+                {n8nTestStatus === 'success' && (
+                  <CheckCircle2 className="mr-1.5 h-3.5 w-3.5 text-green-400" />
+                )}
+                {n8nTestStatus === 'error' && (
+                  <XCircle className="mr-1.5 h-3.5 w-3.5 text-red-400" />
+                )}
+                Test n8n API
+              </Button>
+              {n8nTestStatus === 'success' && (
+                <span className="text-xs text-green-400">n8n API reachable</span>
+              )}
+            </div>
+            {n8nTestStatus === 'error' && n8nTestError && (
+              <p className="text-xs text-amber-400/90 whitespace-pre-wrap break-words">{n8nTestError}</p>
+            )}
+            {n8nQuickOrigin && (
+              <div className="flex flex-wrap gap-2 border-t border-border/60 pt-4">
+                <Button type="button" variant="secondary" size="sm" asChild>
+                  <a href={n8nQuickOrigin} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
+                    Open n8n
+                  </a>
+                </Button>
+                <Button type="button" variant="outline" size="sm" asChild>
+                  <a
+                    href={`${n8nQuickOrigin}/executions`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="If this 404s, use sidebar → Executions in n8n"
+                  >
+                    <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
+                    View executions
+                  </a>
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <WorkflowWebhooksPanel />
+
         {/* CI/CD Integration */}
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">CI/CD Integration</CardTitle>
-            <CardDescription>Set up webhooks and GitHub Actions integration</CardDescription>
+            <CardDescription>GitHub Actions and pipeline behavior</CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
-            <div className="space-y-2">
-              <Label>Webhook URL</Label>
-              <div className="flex items-center gap-2">
-                <Input
-                  value={watchWebhookUrl}
-                  readOnly
-                  className="font-mono text-xs"
-                />
-                <Button type="button" variant="outline" size="icon" onClick={handleCopyWebhook}>
-                  {copied ? (
-                    <CheckCircle2 className="h-4 w-4 text-green-400" />
-                  ) : (
-                    <Copy className="h-4 w-4" />
-                  )}
-                </Button>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Webhook Secret</Label>
-              <div className="flex items-center gap-2">
-                <Input
-                  type="password"
-                  value={watch('webhook_secret') ?? ''}
-                  readOnly
-                  className="font-mono text-xs"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  onClick={() => setValue('webhook_secret', crypto.randomUUID(), { shouldDirty: true })}
-                >
-                  <RefreshCw className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-
-            <Separator />
-
             <div>
               <Label className="mb-2 block">GitHub Actions Snippet</Label>
               <pre className="overflow-x-auto rounded-lg bg-muted/50 p-4 font-mono text-xs leading-relaxed text-foreground/80">

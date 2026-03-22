@@ -7,9 +7,21 @@ from app.utils.scoring import compute_dimension_scores, compute_overall_score
 
 _SEVERITY_ORDER = ("critical", "high", "medium", "low", "info")
 
+_DIMENSION_LABELS = {
+    "risk": "Risk Assessment",
+    "security": "Security",
+    "hallucinations": "Hallucination & Grounding",
+    "failures": "Failure Modes & Reliability",
+    "cost": "Cost & Efficiency",
+    "privacy": "Privacy & Data Protection",
+    "observability": "Observability & Monitoring",
+    "performance": "Performance & Latency",
+    "resources": "Resource Management",
+    "redteam": "Red Team & Adversarial",
+}
+
 
 def _get_worst_severity(findings: list) -> str:
-    """Return the most severe level present in the findings list (critical > … > info)."""
     rank = {s: i for i, s in enumerate(_SEVERITY_ORDER)}
     best_idx = len(_SEVERITY_ORDER)
     worst = "info"
@@ -25,73 +37,161 @@ def _get_worst_severity(findings: list) -> str:
 
 
 def _generate_summary(dim_name: str, data: dict) -> str:
-    """Short human-readable summary for one dimension."""
     count = int(data.get("finding_count", 0))
     worst = str(data.get("worst_severity", "info"))
     score = float(data.get("score", 100))
+    label = _DIMENSION_LABELS.get(dim_name, dim_name.title())
+
+    if count == 0:
+        return f"{label}: No issues detected. Score {score:.0f}/100."
+
+    sev_counts: dict[str, int] = {}
     titles: list[str] = []
     for f in data.get("findings") or []:
-        if isinstance(f, dict) and f.get("title"):
+        if not isinstance(f, dict):
+            continue
+        sev = str(f.get("severity", "info")).lower()
+        sev_counts[sev] = sev_counts.get(sev, 0) + 1
+        if f.get("title"):
             titles.append(str(f["title"]))
-    if count == 0:
-        return f"No issues recorded for {dim_name}; score {score:.0f}/100."
+
+    sev_breakdown = ", ".join(
+        f"{c} {s}" for s, c in sorted(sev_counts.items(), key=lambda x: _SEVERITY_ORDER.index(x[0]) if x[0] in _SEVERITY_ORDER else 99)
+        if c > 0
+    )
+
     preview = "; ".join(titles[:3])
     if len(titles) > 3:
-        preview += " …"
+        preview += f" (+{len(titles) - 3} more)"
+
     return (
-        f"{dim_name}: {count} finding(s), worst severity {worst}. "
-        f"Score {score:.0f}/100. Highlights: {preview}"
+        f"{label}: {count} finding(s) ({sev_breakdown}), worst severity {worst}. "
+        f"Score {score:.0f}/100. Key issues: {preview}"
     )
 
 
-def _generate_executive_summary(
-    score: float,
-    dim_scores: dict[str, float],
-    all_findings: dict,
-) -> str:
-    """Overall narrative for leadership: score, weakest areas, and severity mix."""
-    weakest = sorted(dim_scores.items(), key=lambda x: x[1])[:3]
-    weakest_txt = ", ".join(f"{d} ({s:.0f})" for d, s in weakest) if weakest else "n/a"
+def _generate_recommendations(all_findings: dict) -> list[dict]:
+    """Generate prioritized, actionable recommendations from findings."""
+    recommendations: list[dict] = []
+    severity_rank = {s: i for i, s in enumerate(_SEVERITY_ORDER)}
 
-    crit = high = 0
-    for _dim, data in all_findings.items():
+    all_items: list[tuple[int, str, dict]] = []
+    for dim_name, data in all_findings.items():
         if not isinstance(data, dict):
             continue
         for f in data.get("findings") or []:
             if not isinstance(f, dict):
                 continue
             sev = str(f.get("severity", "info")).lower()
+            rank = severity_rank.get(sev, 99)
+            all_items.append((rank, dim_name, f))
+
+    all_items.sort(key=lambda x: x[0])
+
+    seen_fixes: set[str] = set()
+    for rank, dim_name, finding in all_items[:15]:
+        fix = finding.get("suggested_fix", "")
+        title = finding.get("title", "")
+        if not fix or fix.lower() in seen_fixes:
+            continue
+        seen_fixes.add(fix.lower())
+
+        label = _DIMENSION_LABELS.get(dim_name, dim_name.title())
+        sev = finding.get("severity", "info")
+        priority = "P0" if sev == "critical" else "P1" if sev == "high" else "P2"
+
+        recommendations.append({
+            "priority": priority,
+            "dimension": dim_name,
+            "dimension_label": label,
+            "title": title,
+            "severity": sev,
+            "action": fix,
+            "file": finding.get("evidence", {}).get("file", ""),
+        })
+
+    return recommendations
+
+
+def _generate_executive_summary(
+    score: float,
+    dim_scores: dict[str, float],
+    all_findings: dict,
+    recommendations: list[dict],
+) -> str:
+    weakest = sorted(dim_scores.items(), key=lambda x: x[1])[:3]
+    weakest_txt = ", ".join(
+        f"{_DIMENSION_LABELS.get(d, d)} ({s:.0f})" for d, s in weakest
+    ) if weakest else "n/a"
+
+    strongest = sorted(dim_scores.items(), key=lambda x: x[1], reverse=True)[:2]
+    strongest_txt = ", ".join(
+        f"{_DIMENSION_LABELS.get(d, d)} ({s:.0f})" for d, s in strongest
+    ) if strongest else "n/a"
+
+    crit = high = med = 0
+    total_findings = 0
+    for _dim, data in all_findings.items():
+        if not isinstance(data, dict):
+            continue
+        for f in data.get("findings") or []:
+            if not isinstance(f, dict):
+                continue
+            total_findings += 1
+            sev = str(f.get("severity", "info")).lower()
             if sev == "critical":
                 crit += 1
             elif sev == "high":
                 high += 1
+            elif sev == "medium":
+                med += 1
 
     posture = "strong"
-    if score < 60:
-        posture = "needs urgent remediation"
+    if score < 50:
+        posture = "critical — requires immediate remediation"
+    elif score < 65:
+        posture = "poor — significant gaps need urgent attention"
     elif score < 75:
-        posture = "needs improvement"
+        posture = "fair — several areas need improvement"
     elif score < 90:
-        posture = "acceptable with gaps"
+        posture = "good with identified gaps"
 
-    return (
-        f"Overall SafetyGuard score is {score:.1f}/100 ({posture}). "
-        f"Lowest-scoring dimensions: {weakest_txt}. "
-        f"Severity mix: {crit} critical, {high} high across all dimensions. "
-        "Prioritize fixes that reduce critical/high items in security, privacy, and red-team surfaces."
-    )
+    p0_actions = [r for r in recommendations if r["priority"] == "P0"]
+    p1_actions = [r for r in recommendations if r["priority"] == "P1"]
+
+    lines = [
+        f"Overall SafetyGuard score: {score:.1f}/100 ({posture}).",
+        f"Analyzed across 10 safety dimensions with {total_findings} total finding(s).",
+        f"Severity breakdown: {crit} critical, {high} high, {med} medium.",
+        "",
+        f"Weakest areas: {weakest_txt}.",
+        f"Strongest areas: {strongest_txt}.",
+    ]
+
+    if p0_actions:
+        lines.append("")
+        lines.append(f"Immediate actions required ({len(p0_actions)} critical):")
+        for r in p0_actions[:3]:
+            lines.append(f"  - {r['title']}: {r['action']}")
+
+    if p1_actions:
+        lines.append("")
+        lines.append(f"High-priority improvements ({len(p1_actions)}):")
+        for r in p1_actions[:3]:
+            lines.append(f"  - {r['title']}: {r['action']}")
+
+    return "\n".join(lines)
 
 
 def _default_dependency_graph() -> dict:
-    """Fallback topology when the pipeline has not produced a graph yet."""
     return {
         "nodes": [
-            {"id": "api", "label": "FastAPI Service", "type": "api"},
-            {"id": "llm", "label": "LLM Runtime", "type": "llm"},
-            {"id": "db", "label": "Application DB", "type": "database"},
-            {"id": "cache", "label": "Redis Cache", "type": "database"},
-            {"id": "queue", "label": "Task Queue", "type": "queue"},
-            {"id": "vendor", "label": "External Model API", "type": "external"},
+            {"id": "api", "label": "FastAPI Service", "type": "api", "riskLevel": "medium"},
+            {"id": "llm", "label": "LLM Runtime", "type": "llm", "riskLevel": "high"},
+            {"id": "db", "label": "Application DB", "type": "database", "riskLevel": "medium"},
+            {"id": "cache", "label": "Redis Cache", "type": "database", "riskLevel": "low"},
+            {"id": "queue", "label": "Task Queue", "type": "queue", "riskLevel": "low"},
+            {"id": "vendor", "label": "External Model API", "type": "external", "riskLevel": "high"},
         ],
         "edges": [
             {"source": "api", "target": "llm", "relation": "invoke"},
@@ -138,11 +238,17 @@ async def synthesis_agent(state: SafetyGuardState) -> dict:
         data["score"] = dimension_scores.get(dim_name, 100)
         data["summary"] = _generate_summary(dim_name, data)
 
-    executive_summary = _generate_executive_summary(overall_score, dimension_scores, all_findings)
+    recommendations = _generate_recommendations(all_findings)
+    executive_summary = _generate_executive_summary(
+        overall_score, dimension_scores, all_findings, recommendations,
+    )
 
     dep_graph = state.get("dependency_graph", _default_dependency_graph())
     if not isinstance(dep_graph, dict):
         dep_graph = _default_dependency_graph()
+    for node in dep_graph.get("nodes", []):
+        if "riskLevel" not in node:
+            node["riskLevel"] = "medium"
 
     final_report = {
         "overall_score": overall_score,
@@ -150,6 +256,7 @@ async def synthesis_agent(state: SafetyGuardState) -> dict:
         "dimension_scores": dimension_scores,
         "findings": all_findings,
         "dependency_graph": dep_graph,
+        "recommendations": recommendations,
     }
 
     return {

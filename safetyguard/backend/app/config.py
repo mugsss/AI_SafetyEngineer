@@ -1,24 +1,36 @@
-from pydantic_settings import BaseSettings
-from functools import lru_cache
+from pydantic import AliasChoices, Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=(".env", "../.env"),
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
     DATABASE_URL: str = "sqlite:///./safetyguard.db"
     REDIS_URL: str = "redis://localhost:6379/0"
-    SECRET_KEY: str = "dev-secret-key-change-in-production-min32"
-    ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 10080
-
     FEATHERLESS_API_KEY: str = "mock"
     FEATHERLESS_API_BASE: str = "https://api.featherless.ai/v1"
-    LLM_MODEL: str = "Qwen/Qwen3-32B"
+    LLM_MODEL: str = Field(
+        default="Qwen/Qwen3-32B",
+        validation_alias=AliasChoices("LLM_MODEL", "OPENAI_MODEL"),
+    )
+
+    MIRO_ACCESS_TOKEN: str = ""
+
+    # Optional: n8n (or any HTTP listener) — webhook URL from "Webhook" node in n8n
+    N8N_WEBHOOK_URL: str = ""
+    N8N_WEBHOOK_SECRET: str = ""
+    # Optional: n8n Public API (Settings → n8n API) — same host as your instance, no /webhook path
+    N8N_BASE_URL: str = ""
+    N8N_API_KEY: str = ""
+    # Used in webhook payloads for deep links (set to your deployed frontend URL)
+    FRONTEND_BASE_URL: str = "http://localhost:3000"
 
     UPLOAD_DIR: str = "./uploads"
     MAX_UPLOAD_SIZE_MB: int = 200
-
-    class Config:
-        env_file = ".env"
-        extra = "ignore"
 
     @property
     def is_mock_mode(self) -> bool:
@@ -34,9 +46,4 @@ class Settings(BaseSettings):
         }
 
 
-@lru_cache
-def get_settings() -> Settings:
-    return Settings()
-
-
-settings = get_settings()
+settings = Settings()

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type MouseEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import {
@@ -12,7 +12,7 @@ import {
   ExternalLink,
   PlayCircle,
 } from 'lucide-react';
-import { runsApi } from '@/lib/api';
+import { miroApi, runsApi } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { RunStatusBadge } from '@/components/shared/RunStatusBadge';
 import { ScoreBar } from '@/components/shared/ScoreBar';
@@ -47,6 +47,41 @@ function truncateUrl(url: string, maxLen = 40): string {
 }
 
 const PAGE_SIZE = 20;
+
+function MiroRunButton({ runId }: { runId: string }) {
+  const [loading, setLoading] = useState(false);
+  const [boardUrl, setBoardUrl] = useState<string | null>(null);
+
+  const handleOpen = async (e: MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    if (boardUrl) {
+      window.open(boardUrl, '_blank', 'noopener');
+      return;
+    }
+    setLoading(true);
+    try {
+      const result = await miroApi.createBoard(runId);
+      setBoardUrl(result.board_url);
+      window.open(result.board_url, '_blank', 'noopener');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      className="h-8 gap-1.5"
+      onClick={handleOpen}
+      disabled={loading}
+      title="Create/open Miro board for this run"
+    >
+      {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ExternalLink className="h-3.5 w-3.5" />}
+      {boardUrl ? 'Open Miro' : 'Miro'}
+    </Button>
+  );
+}
 
 export default function RunsPage() {
   const router = useRouter();
@@ -115,6 +150,9 @@ export default function RunsPage() {
                   <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
                     Score
                   </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -167,6 +205,15 @@ export default function RunsPage() {
                         </div>
                       ) : run.status === 'failed' ? (
                         <span className="text-xs text-red-400">Failed</span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {run.status === 'completed' ? (
+                        <div onClick={(e) => e.stopPropagation()}>
+                          <MiroRunButton runId={run.id} />
+                        </div>
                       ) : (
                         <span className="text-xs text-muted-foreground">—</span>
                       )}

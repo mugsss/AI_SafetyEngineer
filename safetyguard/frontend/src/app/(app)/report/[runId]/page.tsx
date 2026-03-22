@@ -9,8 +9,10 @@ import {
   CheckCircle2,
   XCircle,
   ArrowLeft,
+  ExternalLink,
 } from 'lucide-react';
 import Link from 'next/link';
+import { miroApi } from '@/lib/api';
 
 import { useRun } from '@/hooks/useRun';
 import { useReport } from '@/hooks/useReport';
@@ -564,7 +566,7 @@ export default function ReportPage() {
       />
       <ScrollArea className="flex-1">
         <div className="p-6">
-          <div className="mb-6 flex items-center gap-3">
+          <div className="mb-6 flex flex-wrap items-center gap-3">
             <Button variant="ghost" size="sm" asChild>
               <Link href="/">
                 <ArrowLeft className="mr-1 h-4 w-4" />
@@ -576,11 +578,14 @@ export default function ReportPage() {
               Safety Report
             </h1>
             <RunStatusBadge status={run.status} />
-            {run.repo_url && (
-              <span className="ml-auto truncate text-xs text-muted-foreground">
-                {run.repo_url}
-              </span>
-            )}
+            <div className="ml-auto flex min-w-0 max-w-full flex-shrink-0 flex-wrap items-center justify-end gap-2">
+              {run.repo_url && (
+                <span className="max-w-[min(100%,28rem)] truncate text-xs text-muted-foreground">
+                  {run.repo_url}
+                </span>
+              )}
+              <MiroButton runId={runId} />
+            </div>
           </div>
 
           <TabContent
@@ -590,6 +595,77 @@ export default function ReportPage() {
           />
         </div>
       </ScrollArea>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Miro Board Button
+// ---------------------------------------------------------------------------
+
+function MiroButton({ runId }: { runId: string }) {
+  const [loading, setLoading] = useState(false);
+  const [boardUrl, setBoardUrl] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleCreate = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await miroApi.createBoard(runId);
+      setBoardUrl(result.board_url);
+      window.open(result.board_url, '_blank', 'noopener');
+    } catch (e: any) {
+      const msg =
+        e?.response?.data?.detail || e?.message || 'Failed to create Miro board';
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (boardUrl) {
+    return (
+      <Button
+        variant="outline"
+        size="sm"
+        className="shrink-0 gap-1.5"
+        onClick={() => window.open(boardUrl, '_blank', 'noopener')}
+      >
+        <ExternalLink className="h-3.5 w-3.5" />
+        Open in Miro
+      </Button>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      {error && (
+        <span className="max-w-[200px] truncate text-xs text-red-400 sm:max-w-xs" title={error}>
+          {error.length > 40 ? error.slice(0, 40) + '…' : error}
+        </span>
+      )}
+      <Button
+        variant="outline"
+        size="sm"
+        className="shrink-0 gap-1.5"
+        onClick={handleCreate}
+        disabled={loading}
+      >
+        {loading ? (
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        ) : (
+          <svg
+            className="h-3.5 w-3.5"
+            viewBox="0 0 24 24"
+            fill="currentColor"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path d="M17.392 0H13.9L15.673 4.783L10.838 0H7.347L9.678 6.67L4.843 0H1.352L6.3 12L1.352 24H4.843L9.678 17.33L7.347 24H10.838L15.673 19.217L13.9 24H17.392L22.34 12L17.392 0Z" />
+          </svg>
+        )}
+        {loading ? 'Creating…' : 'View in Miro'}
+      </Button>
     </div>
   );
 }
