@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "version": 2,
+  "buildCommand": "cd safetyguard/frontend && npm install && npm run build",
+  "outputDirectory": "safetyguard/frontend/.next",
+  "installCommand": "cd safetyguard/frontend && npm install",
+  "framework": "nextjs",
+  "regions": ["iad1"]
+}
